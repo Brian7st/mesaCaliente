@@ -99,9 +99,9 @@ El proyecto sigue **DDD** (táctico y estratégico) combinado con **Arquitectura
    5b. Algún ítem sin stock → revierte lo ya reservado en esa operación →
        ReservaStockFallida → Pedidos cancela el pedido (compensación Saga).
 6. Cocina escucha PedidoConfirmado → crea OrdenCocina con los ítems.
-7. Cocina finaliza la preparación → PedidoListo.
-8. Pedidos escucha PedidoListo → actualiza su estado.
-9. Caja escucha PedidoListo → genera Factura.
+7. Cocina finaliza la preparación → PedidoListo (único emisor de este evento).
+8. Pedidos escucha PedidoListo → actualiza su estado (no lo reemite).
+9. Caja escucha PedidoListo (de Cocina) → genera Factura.
 10. Se registra el pago → PagoRegistrado.
 11. Si el Pedido es DOMICILIO → Domicilios escucha PedidoConfirmado y crea
     un Domicilio (ASIGNADO → EN_CAMINO → ENTREGADO).
@@ -113,7 +113,7 @@ El proyecto sigue **DDD** (táctico y estratégico) combinado con **Arquitectura
 ```
 Pedidos --PedidoConfirmado--> Inventario --StockReservado/ReservaStockFallida--> Pedidos
 Pedidos --PedidoConfirmado--> Cocina --PedidoListo--> Pedidos
-Pedidos --PedidoListo------->  Caja --PagoRegistrado--> Pedidos
+Cocina  --PedidoListo------->  Caja --PagoRegistrado--> Pedidos
 Pedidos --PedidoConfirmado--> Domicilios
 Pedidos --PedidoConfirmado--> Mesas (ocupar, si aplica)
 Caja    --PagoRegistrado---> Mesas (liberar, si aplica)
@@ -173,12 +173,11 @@ restaurante-backend/
 │   │   │   │   └── dinero.vo.ts
 │   │   │   ├── events/
 │   │   │   │   ├── pedido-confirmado.event.ts
-│   │   │   │   ├── pedido-listo.event.ts
 │   │   │   │   └── pedido-cancelado.event.ts
+│   │   │   ├── exceptions/
+│   │   │   │   ├── pedido.exceptions.ts
+│   │   │   │   └── dinero.exceptions.ts
 │   │   │   └── ports/
-│   │   │       ├── in/
-│   │   │       │   ├── crear-pedido.use-case.ts
-│   │   │       │   └── confirmar-pedido.use-case.ts
 │   │   │       └── out/
 │   │   │           └── pedido.repository.ts
 │   │   ├── application/
@@ -224,6 +223,7 @@ restaurante-backend/
 
 ### 5.1 Nomenclatura de archivos
 - **kebab-case** con sufijo descriptivo: `pedido.aggregate.ts`, `dinero.vo.ts`, `pedido-confirmado.event.ts`, `crear-pedido.command.ts`, `crear-pedido.handler.ts`, `pedido.controller.ts`, `pedido.repository.ts` (puerto), `pedido.repository.prisma.ts` (adaptador).
+- Excepciones de dominio: `<elemento>.exceptions.ts` agrupadas en `domain/exceptions/` (una por aggregate o VO que lanza excepciones, ej. `pedido.exceptions.ts`, `dinero.exceptions.ts`).
 - Clases en **PascalCase**: `Pedido`, `ItemPedido`, `Dinero`, `PedidoConfirmado`, `CrearPedidoHandler`, `PedidoController`.
 - Interfaces de puertos sin prefijo `I` (no `IPedidoRepository`, sí `PedidoRepository`).
 - Tokens de DI: string literal igual al nombre de la interfaz, ej. `'PedidoRepository'`, usado consistentemente en `providers` y en `@Inject('PedidoRepository')`.
@@ -257,6 +257,8 @@ Todo el código de dominio (clases, métodos, propiedades, eventos) va en **espa
 - Toda reacción a algo ocurrido en otro Bounded Context es un **Event Handler** (`OnXxxHandler`, decorado con `@EventsHandler(XxxEvent)`).
 - Los Aggregates acumulan sus eventos internamente (`obtenerEventos()`) y el Command Handler los publica en el `EventBus` **después** de persistir, nunca antes.
 - No se usan Queries de CQRS en este proyecto salvo indicación explícita de una fase; las lecturas simples se resuelven directo en el Controller llamando al repositorio.
+- El **puerto de entrada** de cada operación de escritura se materializa en el par **Command + Handler**. Este proyecto NO define interfaces `ports/in` (`*.use-case.ts`) separadas: con CQRS serían código muerto que nadie implementa.
+- Cada Domain Event tiene un **único emisor canónico**: el Aggregate cuya transición de estado representa ese hecho de negocio. Ningún otro Bounded Context reemite ese evento — los demás reaccionan a él (ej. `PedidoListo` lo emite solo Cocina; Pedidos y Caja lo consumen).
 
 **Motivo:** separa explícitamente comandos (cambian estado) de eventos (notifican lo que ya pasó), y evita publicar un evento sobre un cambio que después falla al persistir.
 
@@ -305,7 +307,7 @@ Para el procedimiento exacto de creación de un endpoint, usa el skill `document
 - Entity interna: `ItemPedido { id, productoId, cantidad, precioUnitario: Dinero }`.
 - VO `Dinero { monto, moneda: 'COP' }`, inmutable, `monto >= 0`.
 - Reglas: no se agregan ítems fuera de `BORRADOR`; no se confirma sin ítems.
-- Eventos: `PedidoConfirmado`, `PedidoListo`, `PedidoCancelado`.
+- Eventos publicados: `PedidoConfirmado`, `PedidoCancelado`. (`PedidoListo` NO lo publica Pedidos: su emisor canónico es Cocina; Pedidos reacciona a él en `marcarListo()`, sin reemitirlo.)
 
 ### 7.2 Mesa (Aggregate Root — `src/mesas/`)
 - Atributos: `id`, `numero`, `estado: 'LIBRE' | 'OCUPADA'`.
@@ -314,7 +316,7 @@ Para el procedimiento exacto de creación de un endpoint, usa el skill `document
 
 ### 7.3 OrdenCocina (Aggregate Root — `src/cocina/`, independiente de Pedido)
 - Atributos: `id`, `pedidoId`, `items: {productoId, cantidad, preparado}[]`, `estado: 'PENDIENTE' | 'EN_PREPARACION' | 'LISTA'`.
-- Se crea reaccionando a `PedidoConfirmado`. Al finalizar (todos los ítems preparados), emite `PedidoListo`.
+- Se crea reaccionando a `PedidoConfirmado`. Al finalizar (todos los ítems preparados), emite `PedidoListo` (Cocina es el **único emisor canónico** de este evento; lo consumen Pedidos y Caja).
 
 ### 7.4 Producto (Aggregate Root — `src/inventario/`)
 - Atributos: `id`, `nombre`, `stock: Cantidad`, `stockReservado: Cantidad`.

@@ -22,10 +22,10 @@ src/<contexto>/
 │   ├── model/
 │   │   └── <aggregate>.aggregate.ts
 │   ├── events/
-│   │   └── (un archivo .event.ts por cada evento que este contexto PUBLICA)
+│   │   └── (un archivo .event.ts por cada evento que este contexto PUBLICA como emisor canónico)
+│   ├── exceptions/
+│   │   └── (un <elemento>.exceptions.ts por aggregate/VO que lanza excepciones)
 │   └── ports/
-│       ├── in/
-│       │   └── (un .use-case.ts o .command.ts por operación de escritura expuesta)
 │       └── out/
 │           └── <aggregate>.repository.ts
 ├── application/
@@ -50,15 +50,15 @@ Si el Aggregate tiene Entities internas o Value Objects propios, agrégalos en `
 ### 2. Modelar el dominio puro (sin ningún import de NestJS/Prisma)
 1. Escribe el Aggregate Root en `domain/model/<aggregate>.aggregate.ts`: propiedades privadas, métodos que expresan las reglas de negocio documentadas (no getters/setters genéricos — métodos con nombre de negocio, ej. `confirmar()`, `ocupar()`, `registrarPago()`).
 2. Si el Aggregate acumula eventos, agrega un array privado de eventos y un método `obtenerEventos()`.
-3. Cada regla de negocio que pueda violarse debe lanzar una excepción propia que extienda `DomainException` (definida en `src/shared/domain/domain-exception.base.ts`). Nombra la excepción en PascalCase terminando en `Exception`.
+3. Cada regla de negocio que pueda violarse debe lanzar una excepción propia que extienda `DomainException` (definida en `src/shared/domain/domain-exception.base.ts`). Nombra la excepción en PascalCase terminando en `Exception` y ubícala en `domain/exceptions/<elemento>.exceptions.ts` (un archivo por aggregate o VO, ej. `pedido.exceptions.ts`, `dinero.exceptions.ts`).
 4. Escribe los Value Objects/Entities internas necesarias, inmutables donde CLAUDE.md lo indique.
-5. Escribe cada Domain Event que este contexto publica, como una `class` simple con propiedades `readonly` (sin decoradores), en `domain/events/`.
+5. Escribe cada Domain Event que este contexto publica, como una `class` simple con propiedades `readonly` (sin decoradores), en `domain/events/`. Cada evento tiene un **único emisor canónico**: el Aggregate cuya transición de estado representa ese hecho de negocio. Ningún otro contexto reemite ese evento — los demás reaccionan a él (ver `crear-event-handler-cross-context`).
 
 **Verificación antes de continuar:** ningún archivo dentro de `domain/` debe tener un `import` que no sea de otro archivo dentro de `domain/` o de tipos nativos de TypeScript.
 
 ### 3. Definir los puertos
 1. `domain/ports/out/<aggregate>.repository.ts`: interfaz con, como mínimo, `buscarPorId(id: string): Promise<Aggregate | null>` y `guardar(aggregate: Aggregate): Promise<void>`. Agrega métodos adicionales solo si el modelo de datos del contexto los requiere explícitamente.
-2. `domain/ports/in/`: una interfaz o tipo por cada Command que el contexto expone a través de HTTP.
+2. **Puertos de entrada:** este proyecto NO define interfaces `ports/in` (`*.use-case.ts`) separadas. El puerto de entrada de cada operación de escritura se materializa en el par Command + Handler (CQRS). No crees archivos `*.use-case.ts` vacíos: serían código muerto.
 
 ### 4. Implementar la capa de aplicación (CQRS)
 Para cada operación de escritura:
