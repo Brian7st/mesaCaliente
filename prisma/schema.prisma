@@ -50,3 +50,25 @@ model Mesa {
   numero Int          @unique
   estado EstadoMesaDb
 }
+
+enum EstadoOrdenCocinaDb {
+  PENDIENTE
+  EN_PREPARACION
+  LISTA
+}
+
+model OrdenCocina {
+  id       String              @id @default(uuid())
+  pedidoId String
+  estado   EstadoOrdenCocinaDb
+  items    ItemOrden[]
+}
+
+model ItemOrden {
+  id         String      @id @default(uuid())
+  ordenId    String
+  orden      OrdenCocina @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  productoId String
+  cantidad   Int
+  preparado  Boolean     @default(false)
+}
