@@ -1,0 +1,25 @@
+# compiled output
+/dist
+/node_modules
+/build
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+
+# OS
+.DS_Store
+
+# IDE
+.idea
+*.iml
+
+# Prisma
+prisma/migrations/dev.db*
+
+# NestJS
+*.tsbuildinfo

@@ -1,0 +1,11 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Los modelos de cada Bounded Context se agregan en su fase correspondiente
+// (ver PLAN-FASES-DESARROLLO.md). El patron Outbox se agrega en la Fase 8.
