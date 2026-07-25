@@ -49,7 +49,7 @@
 - `agregarItem(item)`: solo si `estado === BORRADOR`. Si no, lanza `PedidoYaConfirmadoException`.
 - `confirmar()`: `BORRADOR → CONFIRMADO`. Requiere `items.length > 0`, si no lanza `PedidoVacioException`. Agrega evento `PedidoConfirmado`.
 - `iniciarPreparacion()`: `CONFIRMADO → EN_PREPARACION`.
-- `marcarListo()`: `EN_PREPARACION → LISTO`. Agrega evento `PedidoListo`.
+- `marcarListo()`: `EN_PREPARACION → LISTO`. NO emite evento — es la reacción de Pedidos al `PedidoListo` publicado por Cocina (único emisor canónico de ese evento).
 - `marcarPagado()`: `LISTO → PAGADO`.
 - `cancelar(motivo)`: `CONFIRMADO → CANCELADO`. Agrega evento `PedidoCancelado`.
 
@@ -59,10 +59,11 @@
 
 **Value Object: `EstadoPedido`** — enum de TypeScript con los 6 valores listados.
 
-**Domain Events publicados:**
+**Domain Events publicados por Pedidos:**
 - `PedidoConfirmado { pedidoId, mesaId, tipo, items: {productoId, cantidad}[], total: Dinero, fecha }`
-- `PedidoListo { pedidoId, fecha }`
 - `PedidoCancelado { pedidoId, motivo, fecha }`
+
+> `PedidoListo` **NO lo publica Pedidos**: su emisor canónico es Cocina (Fase 3). Pedidos reacciona a él en `marcarListo()` sin reemitirlo. El evento se define en `cocina/domain/events/pedido-listo.event.ts`.
 
 **Commands:**
 - `CrearPedidoCommand { pedidoId, mesaId?, tipo }`
@@ -124,7 +125,7 @@
 - Se crea reaccionando a `PedidoConfirmado`, en `PENDIENTE`, con los ítems del evento (`preparado: false` inicialmente).
 - `iniciarPreparacion()`: `PENDIENTE → EN_PREPARACION`.
 - `marcarItemPreparado(productoId)`: marca ese ítem.
-- `finalizar()`: solo si todos los ítems tienen `preparado: true`, si no lanza `OrdenCocinaIncompletaException`. Cambia a `LISTA`, agrega evento `PedidoListo { pedidoId }`.
+- `finalizar()`: solo si todos los ítems tienen `preparado: true`, si no lanza `OrdenCocinaIncompletaException`. Cambia a `LISTA`, agrega evento `PedidoListo { pedidoId, fecha }`. **Cocina es el único emisor canónico de `PedidoListo`** (lo consumen Pedidos y Caja). Definir el evento en `cocina/domain/events/pedido-listo.event.ts`.
 
 **Event Handler:** `OnPedidoConfirmadoHandler` en `cocina/` (escucha `PedidoConfirmado` de Pedidos, crea la `OrdenCocina`).
 
@@ -190,10 +191,10 @@
 **Aggregate Root: `Factura`** — `{ id, pedidoId, total: Dinero (VO), estado: 'PENDIENTE' | 'PAGADA' }`.
 
 **Reglas:**
-- Se crea reaccionando a `PedidoListo`, en `PENDIENTE`. El `total` se toma del propio evento si `PedidoListo` lo incluye; si no, agrega el campo `total: Dinero` al payload de `PedidoListo` en `pedidos/domain/events/pedido-listo.event.ts` (ajuste retroactivo permitido y esperado en esta fase — actualízalo también en el emisor).
+- Se crea reaccionando a `PedidoListo`, en `PENDIENTE`. El `total` se toma del propio evento si `PedidoListo` lo incluye; si no, agrega el campo `total: Dinero` al payload de `PedidoListo` en `cocina/domain/events/pedido-listo.event.ts` (ajuste retroactivo permitido y esperado en esta fase — actualízalo también en el emisor, Cocina).
 - `registrarPago()`: `PENDIENTE → PAGADA`. Falla si ya `PAGADA` → `FacturaYaPagadaException`. Agrega evento `PagoRegistrado { pedidoId, facturaId, total, fecha }`.
 
-**Event Handler:** `OnPedidoListoHandler` en `caja/` (escucha `PedidoListo` de Pedidos, crea la `Factura`).
+**Event Handler:** `OnPedidoListoHandler` en `caja/` (escucha `PedidoListo` de Cocina, crea la `Factura`).
 
 **Endpoints (`FacturaController`, tag Swagger `Caja`):**
 - `GET /caja/facturas`
