@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { EstadoMesaDb, Mesa as MesaRow } from '@prisma/client';
+import { EstadoMesaDb, Mesa as MesaRow, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../../shared/infrastructure/prisma/prisma.service';
 import { MesaRepository } from '../../../domain/ports/out/mesa.repository';
 import { Mesa } from '../../../domain/model/mesa.aggregate';
 import { NumeroMesa } from '../../../domain/model/numero-mesa.vo';
 import { EstadoMesa } from '../../../domain/model/estado-mesa.vo';
+import { NumeroMesaDuplicadoException } from '../../../domain/exceptions/mesa.exceptions';
 
 @Injectable()
 export class MesaRepositoryPrisma implements MesaRepository {
@@ -22,17 +23,29 @@ export class MesaRepositoryPrisma implements MesaRepository {
 
   async guardar(mesa: Mesa): Promise<void> {
     const estado = mesa.estado as unknown as EstadoMesaDb;
-    await this.prisma.mesa.upsert({
-      where: { id: mesa.id },
-      create: {
-        id: mesa.id,
-        numero: mesa.numero.valor,
-        estado,
-      },
-      update: {
-        estado,
-      },
-    });
+    try {
+      await this.prisma.mesa.upsert({
+        where: { id: mesa.id },
+        create: {
+          id: mesa.id,
+          numero: mesa.numero.valor,
+          estado,
+        },
+        update: {
+          estado,
+        },
+      });
+    } catch (error) {
+      // Traduce la violacion de unicidad de `numero` (P2002) a una excepcion
+      // de dominio, para que el filtro global responda 400 en vez de 500.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new NumeroMesaDuplicadoException(mesa.numero.valor);
+      }
+      throw error;
+    }
   }
 
   private aDominio(row: MesaRow): Mesa {
