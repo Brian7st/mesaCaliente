@@ -9,3 +9,33 @@ datasource db {
 
 // Los modelos de cada Bounded Context se agregan en su fase correspondiente
 // (ver PLAN-FASES-DESARROLLO.md). El patron Outbox se agrega en la Fase 8.
+
+// Convencion de moneda: los montos (COP) se persisten como Int (pesos enteros),
+// consistente en todo el proyecto. Mapea al VO Dinero { monto: number, moneda: 'COP' }.
+
+enum EstadoPedidoDb {
+  BORRADOR
+  CONFIRMADO
+  EN_PREPARACION
+  LISTO
+  PAGADO
+  CANCELADO
+}
+
+model Pedido {
+  id        String         @id @default(uuid())
+  mesaId    String?
+  tipo      String
+  estado    EstadoPedidoDb
+  createdAt DateTime       @default(now())
+  items     ItemPedido[]
+}
+
+model ItemPedido {
+  id             String @id @default(uuid())
+  pedidoId       String
+  pedido         Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  productoId     String
+  cantidad       Int
+  precioUnitario Int
+}
