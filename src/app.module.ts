@@ -1,15 +1,12 @@
 import { Module } from '@nestjs/common';
-import { PrismaService } from './shared/infrastructure/prisma/prisma.service';
+import { PrismaModule } from './shared/infrastructure/prisma/prisma.module';
+import { PedidosModule } from './pedidos/pedidos.module';
 
 /**
- * Composition Root global. A medida que se implementen los Bounded Contexts
- * (Pedidos, Mesas, Cocina, Inventario, Caja, Domicilios) se importan aca sus
- * respectivos modulos.
+ * Composition Root global. Importa el modulo global de Prisma y los modulos
+ * de cada Bounded Context a medida que se implementan.
  */
 @Module({
-  imports: [],
-  controllers: [],
-  providers: [PrismaService],
-  exports: [PrismaService],
+  imports: [PrismaModule, PedidosModule],
 })
 export class AppModule {}
