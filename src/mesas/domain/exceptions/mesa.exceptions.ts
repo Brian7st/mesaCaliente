@@ -11,3 +11,9 @@ export class MesaYaLibreException extends DomainException {
     super(`La mesa ${mesaId} ya esta LIBRE.`);
   }
 }
+
+export class NumeroMesaDuplicadoException extends DomainException {
+  constructor(numero: number) {
+    super(`Ya existe una mesa con el numero ${numero}.`);
+  }
+}
