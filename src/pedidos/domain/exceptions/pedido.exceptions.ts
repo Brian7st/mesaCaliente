@@ -1,5 +1,5 @@
 import { DomainException } from '../../../shared/domain/domain-exception.base';
-import { EstadoPedido } from './estado-pedido.vo';
+import { EstadoPedido } from '../model/estado-pedido.vo';
 
 export class PedidoVacioException extends DomainException {
   constructor(pedidoId: string) {

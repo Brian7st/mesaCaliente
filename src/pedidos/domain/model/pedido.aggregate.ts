@@ -5,9 +5,8 @@ import {
   PedidoVacioException,
   PedidoYaConfirmadoException,
   TransicionInvalidaException,
-} from './pedido.exceptions';
+} from '../exceptions/pedido.exceptions';
 import { PedidoConfirmado } from '../events/pedido-confirmado.event';
-import { PedidoListo } from '../events/pedido-listo.event';
 import { PedidoCancelado } from '../events/pedido-cancelado.event';
 
 export type TipoPedido = 'LOCAL' | 'DOMICILIO';
@@ -98,12 +97,16 @@ export class Pedido {
     this._estado = EstadoPedido.EN_PREPARACION;
   }
 
+  /**
+   * Reaccion de Pedidos al evento PedidoListo publicado por Cocina (unico
+   * emisor canonico de ese evento). Solo transiciona el estado; NO reemite
+   * el evento, para no duplicar su publicacion en el EventBus.
+   */
   marcarListo(): void {
     if (this._estado !== EstadoPedido.EN_PREPARACION) {
       throw new TransicionInvalidaException(this._estado, EstadoPedido.LISTO);
     }
     this._estado = EstadoPedido.LISTO;
-    this._eventos.push(new PedidoListo(this._id, new Date()));
   }
 
   marcarPagado(): void {
