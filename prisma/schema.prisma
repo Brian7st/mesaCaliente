@@ -39,3 +39,14 @@ model ItemPedido {
   cantidad       Int
   precioUnitario Int
 }
+
+enum EstadoMesaDb {
+  LIBRE
+  OCUPADA
+}
+
+model Mesa {
+  id     String       @id @default(uuid())
+  numero Int          @unique
+  estado EstadoMesaDb
+}
