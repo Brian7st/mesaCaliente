@@ -1,5 +1,30 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
+
+export class DireccionDto {
+  @ApiProperty({ description: 'Calle y numero', example: 'Cra 7 # 45-12' })
+  @IsString()
+  @IsNotEmpty()
+  calle: string;
+
+  @ApiProperty({ description: 'Ciudad', example: 'Bogota' })
+  @IsString()
+  @IsNotEmpty()
+  ciudad: string;
+
+  @ApiProperty({ description: 'Referencia opcional', example: 'Apto 302', required: false })
+  @IsOptional()
+  @IsString()
+  referencia?: string;
+}
 
 export class CrearPedidoDto {
   @ApiProperty({
@@ -18,4 +43,15 @@ export class CrearPedidoDto {
   })
   @IsIn(['LOCAL', 'DOMICILIO'])
   tipo: 'LOCAL' | 'DOMICILIO';
+
+  @ApiProperty({
+    description: 'Direccion de entrega (obligatoria si tipo es DOMICILIO)',
+    type: DireccionDto,
+    required: false,
+  })
+  @ValidateIf((dto: CrearPedidoDto) => dto.tipo === 'DOMICILIO')
+  @IsNotEmpty()
+  @ValidateNested()
+  @Type(() => DireccionDto)
+  direccion?: DireccionDto;
 }

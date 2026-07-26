@@ -23,12 +23,15 @@ enum EstadoPedidoDb {
 }
 
 model Pedido {
-  id        String         @id @default(uuid())
-  mesaId    String?
-  tipo      String
-  estado    EstadoPedidoDb
-  createdAt DateTime       @default(now())
-  items     ItemPedido[]
+  id         String         @id @default(uuid())
+  mesaId     String?
+  tipo       String
+  estado     EstadoPedidoDb
+  createdAt  DateTime       @default(now())
+  calle      String?
+  ciudad     String?
+  referencia String?
+  items      ItemPedido[]
 }
 
 model ItemPedido {

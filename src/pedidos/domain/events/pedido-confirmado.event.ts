@@ -1,4 +1,5 @@
 import { Dinero } from '../model/dinero.vo';
+import { DireccionPedido } from '../model/pedido.aggregate';
 
 export class PedidoConfirmado {
   constructor(
@@ -8,5 +9,6 @@ export class PedidoConfirmado {
     readonly items: { productoId: string; cantidad: number }[],
     readonly total: Dinero,
     readonly fecha: Date,
+    readonly direccion: DireccionPedido | null,
   ) {}
 }
