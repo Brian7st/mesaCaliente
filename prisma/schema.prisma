@@ -144,6 +144,15 @@ model Domicilio {
   estado     EstadoDomicilioDb
 }
 
+// Proyeccion (read-model) del catalogo de Carta, mantenida por Pedidos via
+// eventos, para resolver precio/disponibilidad al agregar un plato al pedido.
+model PlatoCatalogo {
+  platoId    String  @id
+  nombre     String
+  precio     Int
+  disponible Boolean
+}
+
 model OutboxEvent {
   id          String   @id @default(uuid())
   aggregateId String
