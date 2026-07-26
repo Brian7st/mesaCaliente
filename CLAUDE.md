@@ -22,7 +22,7 @@ Modela el flujo operativo completo de un restaurante: ocupación de mesas, toma 
 
 ### 1.3 Alcance — QUÉ SÍ incluye
 - Backend completo en NestJS con arquitectura DDD + Hexagonal.
-- 6 Bounded Contexts, cada uno como módulo independiente: **Pedidos** (Core Domain), **Mesas**, **Cocina**, **Inventario**, **Caja**, **Domicilios**.
+- 7 Bounded Contexts, cada uno como módulo independiente: **Pedidos** (Core Domain), **Carta**, **Mesas**, **Cocina**, **Inventario**, **Caja**, **Domicilios**.
 - API REST documentada con Swagger/OpenAPI.
 - Comunicación entre Bounded Contexts exclusivamente vía Domain Events (`@nestjs/cqrs`).
 - Persistencia con Prisma + PostgreSQL.
@@ -76,9 +76,10 @@ El proyecto sigue **DDD** (táctico y estratégico) combinado con **Arquitectura
 | Bounded Context | Carpeta raíz | Tipo de subdominio | Responsabilidad |
 |---|---|---|---|
 | Pedidos | `src/pedidos/` | **Core Domain** | Crear/confirmar pedidos, gestionar ítems, orquestar el ciclo de vida del pedido. |
+| Carta | `src/carta/` | Supporting | Platos del menú con precio propio y receta; explota recetas a insumos. |
 | Mesas | `src/mesas/` | Supporting | Estado de ocupación de las mesas. |
 | Cocina | `src/cocina/` | Supporting | Preparación de los ítems de un pedido confirmado. |
-| Inventario | `src/inventario/` | Supporting | Stock de productos/insumos, reserva y descuento. |
+| Inventario | `src/inventario/` | Supporting | Stock de insumos, movimientos (kardex) y ciclo de reserva. |
 | Caja | `src/caja/` | Supporting | Facturación y registro de pagos. |
 | Domicilios | `src/domicilios/` | Supporting | Asignación y rastreo de entregas a domicilio. |
 
@@ -90,35 +91,57 @@ El proyecto sigue **DDD** (táctico y estratégico) combinado con **Arquitectura
 ### 3.5 Flujo de negocio de referencia
 
 ```
+0. En Carta se dan de alta los Platos (nombre, precio propio, categoría) y su
+   Receta (qué insumos y cuánto consume cada plato). Pedidos mantiene una
+   proyección local del catálogo (PlatoCatalogo) alimentada por los eventos de
+   Carta (PlatoCreado / PrecioActualizado / DisponibilidadCambiada).
 1. Se ocupa una Mesa (o el pedido es directamente a domicilio, sin mesa).
-2. Se crea un Pedido en BORRADOR, asociado o no a una Mesa.
-3. Se agregan ItemPedido (producto + cantidad).
-4. Se confirma el Pedido → evento PedidoConfirmado.
-5. Inventario escucha PedidoConfirmado → reserva stock de cada ítem.
-   5a. Todo con stock suficiente → StockReservado.
-   5b. Algún ítem sin stock → revierte lo ya reservado en esa operación →
+2. Se crea un Pedido en BORRADOR, asociado o no a una Mesa (con observación
+   opcional a nivel de pedido).
+3. Se agregan ItemPedido (platoId + cantidad + observación opcional). El precio
+   NO lo manda el cliente: se toma (snapshot) de la proyección del catálogo y se
+   congela en el ítem. Si el plato no existe o está no disponible, se rechaza.
+4. Se confirma el Pedido → evento PedidoConfirmado (lleva los ítems por platoId
+   con sus observaciones, el total y la observación del pedido).
+5. Carta escucha PedidoConfirmado → explota las recetas de cada plato (multiplica
+   por la cantidad) → emite InsumosRequeridos { pedidoId, [{insumoId, cantidad}] }.
+6. Inventario escucha InsumosRequeridos → reserva stock de cada insumo.
+   6a. Todo con stock suficiente → persiste la reserva por pedido (ReservaInsumo),
+       registra movimientos RESERVA → StockReservado.
+   6b. Algún insumo sin stock → no persiste nada (todo o nada) →
        ReservaStockFallida → Pedidos cancela el pedido (compensación Saga).
-6. Cocina escucha PedidoConfirmado → crea OrdenCocina con los ítems.
-7. Cocina finaliza la preparación → PedidoListo (único emisor de este evento).
-8. Pedidos escucha PedidoListo → actualiza su estado (no lo reemite).
-9. Caja escucha PedidoConfirmado → agrega el pedido a la Cuenta de la mesa
+7. Cocina escucha PedidoConfirmado → crea OrdenCocina con los ítems (platoId +
+   observación por ítem y de pedido, para que el cocinero las vea).
+8. Cocina finaliza la preparación → PedidoListo (único emisor de este evento).
+9. Pedidos escucha PedidoListo → actualiza su estado (no lo reemite).
+   Inventario escucha PedidoListo → consume la reserva del pedido (baja stock
+   físico y reservado, movimientos SALIDA) y borra el ReservaInsumo.
+10. Caja escucha PedidoConfirmado → agrega el pedido a la Cuenta de la mesa
    (o abre una nueva); si el pedido se cancela, lo quita (PedidoCancelado).
-10. Se paga la Cuenta → PagoRegistrado.
-11. Si el Pedido es DOMICILIO → Domicilios escucha PedidoConfirmado y crea
+   Inventario escucha PedidoCancelado → libera la reserva (movimientos
+   LIBERACION); si la reserva nunca se persistió, es un no-op.
+11. Se paga la Cuenta → PagoRegistrado.
+12. Si el Pedido es DOMICILIO → Domicilios escucha PedidoConfirmado y crea
     un Domicilio (ASIGNADO → EN_CAMINO → ENTREGADO).
-12. Si el Pedido tenía Mesa y ya se pagó → la Mesa se libera.
+13. Si el Pedido tenía Mesa y ya se pagó → la Mesa se libera.
+
+Además, Inventario admite entradas de stock (reponer → movimiento ENTRADA) y
+salidas manuales por merma/ajuste (movimiento SALIDA); todo cambio de stock
+queda en el kardex append-only MovimientoInventario.
 ```
 
 ### 3.6 Diagrama de eventos entre contextos
 
 ```
-Pedidos --PedidoConfirmado--> Inventario --StockReservado/ReservaStockFallida--> Pedidos
-Pedidos --PedidoConfirmado--> Cocina --PedidoListo--> Pedidos
+Pedidos --PedidoConfirmado--> Carta --InsumosRequeridos--> Inventario --StockReservado/ReservaStockFallida--> Pedidos
+Pedidos --PedidoConfirmado--> Cocina --PedidoListo--> Pedidos (LISTO) + Inventario (consume reserva → SALIDA)
 Pedidos --PedidoConfirmado--> Caja (agrega a la Cuenta de la mesa)
 Pedidos --PedidoCancelado---> Caja (quita el pedido de la Cuenta)
+Pedidos --PedidoCancelado---> Inventario (libera reserva → LIBERACION)
 Caja    --PagoRegistrado----> Pedidos (marcar PAGADO) y Mesas (liberar)
 Pedidos --PedidoConfirmado--> Domicilios
 Pedidos --PedidoConfirmado--> Mesas (ocupar, si aplica)
+Carta   --PlatoCreado/PrecioActualizado/DisponibilidadCambiada--> Pedidos (proyección de catálogo)
 ```
 
 ### 3.7 Composition Root
@@ -210,12 +233,20 @@ restaurante-backend/
 │   │           └── persistence/
 │   │               └── pedido.repository.prisma.ts
 │   │
+│   ├── carta/                         ← misma subestructura, adaptada a Plato (precio + receta)
 │   ├── mesas/                         ← misma subestructura que pedidos/, adaptada a Mesa
 │   ├── cocina/                        ← misma subestructura, adaptada a OrdenCocina
-│   ├── inventario/                    ← misma subestructura, adaptada a Producto
-│   ├── caja/                          ← misma subestructura, adaptada a Factura
+│   ├── inventario/                    ← misma subestructura, adaptada a Producto (insumo)
+│   ├── caja/                          ← misma subestructura, adaptada a Cuenta
 │   └── domicilios/                    ← misma subestructura, adaptada a Domicilio
 ```
+
+> **Nota (Inventario, Fase D):** además del aggregate `Producto`, Inventario incluye
+> la entity de kardex `MovimientoInventario` (`domain/model/`) y un segundo puerto
+> `ReservaInsumoRepository` (`domain/ports/out/`) con su adaptador Prisma, para el
+> registro de reserva por pedido. Es la única desviación respecto al layout mínimo:
+> un Bounded Context puede tener más de un aggregate/entity y más de un puerto cuando
+> el dominio lo exige, siempre respetando la subestructura `domain/application/infrastructure`.
 
 **Regla dura:** todos los Bounded Contexts deben replicar exactamente la subestructura mostrada para `pedidos/`. No omitir carpetas ni aplanar la estructura "para ir más rápido". Para el procedimiento exacto de creación de un nuevo Bounded Context, usa el skill `crear-bounded-context`.
 
@@ -304,13 +335,19 @@ Para el procedimiento exacto de creación de un endpoint, usa el skill `document
 ## 7. Modelo de datos e información de negocio (resumen — detalle completo en cada skill relevante)
 
 ### 7.1 Pedido (Aggregate Root, Core Domain — `src/pedidos/`)
-- Atributos: `id`, `mesaId?`, `tipo: 'LOCAL' | 'DOMICILIO'`, `estado: EstadoPedido`, `items: ItemPedido[]`, `createdAt`.
+- Atributos: `id`, `mesaId?`, `tipo: 'LOCAL' | 'DOMICILIO'`, `estado: EstadoPedido`, `items: ItemPedido[]`, `observacion?` (a nivel de pedido), `createdAt`.
 - Estados: `BORRADOR → CONFIRMADO → EN_PREPARACION → LISTO → PAGADO`, o `CONFIRMADO → CANCELADO`.
-- Entity interna: `ItemPedido { id, productoId, cantidad, precioUnitario: Dinero }`.
+- Entity interna: `ItemPedido { id, platoId, cantidad, precioUnitario: Dinero, observacion? }`. El ítem referencia un **plato** de la Carta (no un insumo), y `precioUnitario` es un **snapshot** congelado al agregar el ítem.
 - VO `Dinero { monto, moneda: 'COP' }`, inmutable, `monto >= 0`.
-- Reglas: no se agregan ítems fuera de `BORRADOR`; no se confirma sin ítems.
-- Eventos publicados: `PedidoConfirmado`, `PedidoCancelado`. (`PedidoListo` NO lo publica Pedidos: su emisor canónico es Cocina; Pedidos reacciona a él en `marcarListo()`, sin reemitirlo.)
+- Reglas: no se agregan ítems fuera de `BORRADOR`; no se confirma sin ítems. El precio NO viene del cliente: al agregar el ítem, el handler lo obtiene de la **proyección del catálogo** (`PlatoCatalogo`) y valida que el plato exista y esté disponible (si no, lo rechaza).
+- **Proyección de catálogo** (read-model, no aggregate): Pedidos escucha `PlatoCreado`/`PrecioActualizado`/`DisponibilidadCambiada` de Carta y guarda `{platoId, nombre, precio, disponible}` en `PlatoCatalogo` para resolver precio/disponibilidad sin llamar a otro contexto. Vive como adaptador de lectura (`infrastructure/out/persistence`), con su puerto `CatalogoPlatosRepository`.
+- Eventos publicados: `PedidoConfirmado` (lleva los ítems por `platoId` con su `observacion`, el total y la `observacion` del pedido), `PedidoCancelado`. (`PedidoListo` NO lo publica Pedidos: su emisor canónico es Cocina; Pedidos reacciona a él en `marcarListo()`, sin reemitirlo.)
 - El pedido transporta una `direccion` de entrega opcional (`{ calle, ciudad, referencia? }`), obligatoria cuando `tipo === 'DOMICILIO'`. Viaja en el payload de `PedidoConfirmado` para que Domicilios pueda crear la entrega. Pedidos no valida ni modela la dirección (el VO `Direccion` con validación vive en Domicilios); solo la lleva.
+
+### 7.1.b Plato (Aggregate Root — `src/carta/`)
+- Atributos: `id`, `nombre`, `precio: Dinero`, `categoria: CategoriaPlato` (`ENTRADA|PRINCIPAL|POSTRE|BEBIDA|ACOMPANAMIENTO`), `disponible: boolean`, `receta: LineaReceta[]`.
+- Entity/VO interna: `LineaReceta { insumoId, cantidad }` — qué insumo (Producto de Inventario) y cuánto consume el plato.
+- Eventos publicados: `PlatoCreado`, `PrecioActualizado`, `DisponibilidadCambiada` (los consume la proyección de Pedidos), e `InsumosRequeridos` — que Carta emite reaccionando a `PedidoConfirmado`: explota la receta de cada plato (× cantidad) y agrega los insumos por pedido, para que Inventario reserve. Es el desacoplo Plato↔Insumo: Pedidos/Cocina hablan de platos, Inventario de insumos.
 
 ### 7.2 Mesa (Aggregate Root — `src/mesas/`)
 - Atributos: `id`, `numero`, `estado: 'LIBRE' | 'OCUPADA'`.
@@ -318,13 +355,19 @@ Para el procedimiento exacto de creación de un endpoint, usa el skill `document
 - Reacciona a `PedidoConfirmado` (ocupar) y `PagoRegistrado` (liberar).
 
 ### 7.3 OrdenCocina (Aggregate Root — `src/cocina/`, independiente de Pedido)
-- Atributos: `id`, `pedidoId`, `items: {productoId, cantidad, preparado}[]`, `estado: 'PENDIENTE' | 'EN_PREPARACION' | 'LISTA'`.
-- Se crea reaccionando a `PedidoConfirmado`. Al finalizar (todos los ítems preparados), emite `PedidoListo` (Cocina es el **único emisor canónico** de este evento; lo consumen Pedidos y Caja).
+- Atributos: `id`, `pedidoId`, `items: {platoId, cantidad, preparado, observacion?}[]`, `observacion?` (de pedido), `estado: 'PENDIENTE' | 'EN_PREPARACION' | 'LISTA' | 'DESCARTADA'`.
+- Se crea reaccionando a `PedidoConfirmado`, copiando las observaciones (por ítem y de pedido) para que el cocinero las vea. Se marca cada ítem preparado por `platoId`. Al finalizar (todos preparados), emite `PedidoListo` (Cocina es el **único emisor canónico** de este evento; lo consumen Pedidos e Inventario). Reacciona a `PedidoCancelado` pasando a `DESCARTADA`.
 
-### 7.4 Producto (Aggregate Root — `src/inventario/`)
-- Atributos: `id`, `nombre`, `stock: Cantidad`, `stockReservado: Cantidad`.
+### 7.4 Producto (Aggregate Root — `src/inventario/`) — representa un **insumo**
+- Atributos: `id`, `nombre`, `stock: Cantidad`, `stockReservado: Cantidad`. Disponible = `stock - stockReservado`.
 - VO `Cantidad`, `valor >= 0`.
-- Reacciona a `PedidoConfirmado`: reserva stock de todos los ítems o revierte lo parcial y emite `ReservaStockFallida`.
+- Métodos: `reservarStock` (aparta, ↑reservado, movimiento RESERVA), `consumirReserva` (↓stock y ↓reservado, SALIDA), `liberarReserva` (↓reservado, LIBERACION), `reponer` (↑stock, ENTRADA), `registrarSalida` (merma: ↓stock validando disponible, SALIDA).
+- **Kardex**: cada mutación acumula una entity `MovimientoInventario { id, productoId, tipo: ENTRADA|SALIDA|RESERVA|LIBERACION, cantidad, motivo?, fecha }` que el repositorio persiste en la misma transacción que el aggregate (mismo principio que el Outbox con eventos).
+- **Ciclo de reserva** (coreografía por eventos):
+  - Reacciona a `InsumosRequeridos` (de Carta): reserva **todos** los insumos o **nada** (todo-o-nada); si todo va bien persiste el registro de reserva por pedido (`ReservaInsumo`) y emite `StockReservado`; si falta stock emite `ReservaStockFallida`.
+  - Reacciona a `PedidoListo` (de Cocina): **consume** la reserva del pedido y borra su `ReservaInsumo`.
+  - Reacciona a `PedidoCancelado` (de Pedidos): **libera** la reserva (no-op si nunca se persistió).
+- Segundo puerto `ReservaInsumoRepository` (registro de reserva por pedido), aparte de `ProductoRepository`.
 
 ### 7.5 Cuenta (Aggregate Root — `src/caja/`)
 - Atributos: `id`, `mesaId?` (null para domicilios), `estado: 'ABIERTA' | 'PAGADA'`, `lineas: LineaCuenta[]`.
