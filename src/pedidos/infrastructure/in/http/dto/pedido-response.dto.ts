@@ -5,14 +5,17 @@ export class ItemPedidoResponseDto {
   @ApiProperty({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
   id: string;
 
-  @ApiProperty({ example: 'prod-abc-123' })
-  productoId: string;
+  @ApiProperty({ example: 'plato-abc-123' })
+  platoId: string;
 
   @ApiProperty({ example: 2 })
   cantidad: number;
 
-  @ApiProperty({ description: 'Precio unitario en COP', example: 15000 })
+  @ApiProperty({ description: 'Precio unitario en COP (snapshot)', example: 25000 })
   precioUnitario: number;
+
+  @ApiProperty({ example: 'Sin cebolla', required: false, nullable: true })
+  observacion?: string;
 }
 
 export class PedidoResponseDto {
@@ -47,6 +50,9 @@ export class PedidoResponseDto {
 
   @ApiProperty({ example: '2026-07-25T12:00:00.000Z' })
   createdAt: Date;
+
+  @ApiProperty({ example: 'Todo junto por favor', required: false, nullable: true })
+  observacion?: string;
 }
 
 export class PedidosPaginadosDto {

@@ -54,4 +54,13 @@ export class CrearPedidoDto {
   @ValidateNested()
   @Type(() => DireccionDto)
   direccion?: DireccionDto;
+
+  @ApiProperty({
+    description: 'Observacion general del pedido (ej. mesa apurada)',
+    example: 'Todo junto por favor',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  observacion?: string;
 }

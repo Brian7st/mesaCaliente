@@ -5,6 +5,7 @@ import { CrearPlatoHandler } from './application/commands/crear-plato/crear-plat
 import { ActualizarPrecioHandler } from './application/commands/actualizar-precio/actualizar-precio.handler';
 import { CambiarDisponibilidadHandler } from './application/commands/cambiar-disponibilidad/cambiar-disponibilidad.handler';
 import { DefinirRecetaHandler } from './application/commands/definir-receta/definir-receta.handler';
+import { OnPedidoConfirmadoHandler } from './application/event-handlers/on-pedido-confirmado.handler';
 import { PlatoRepositoryPrisma } from './infrastructure/out/persistence/plato.repository.prisma';
 
 const CommandHandlers = [
@@ -13,12 +14,14 @@ const CommandHandlers = [
   CambiarDisponibilidadHandler,
   DefinirRecetaHandler,
 ];
+const EventHandlers = [OnPedidoConfirmadoHandler];
 
 @Module({
   imports: [CqrsModule],
   controllers: [PlatoController],
   providers: [
     ...CommandHandlers,
+    ...EventHandlers,
     { provide: 'PlatoRepository', useClass: PlatoRepositoryPrisma },
   ],
 })

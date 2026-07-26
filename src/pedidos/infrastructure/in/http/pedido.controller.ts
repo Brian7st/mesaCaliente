@@ -49,6 +49,7 @@ export class PedidoController {
         dto.mesaId ?? null,
         dto.tipo,
         dto.direccion ?? null,
+        dto.observacion ?? null,
       ),
     );
     const pedido = await this.repo.buscarPorId(pedidoId);
@@ -65,12 +66,7 @@ export class PedidoController {
     @Body() dto: AgregarItemDto,
   ): Promise<PedidoResponseDto> {
     await this.commandBus.execute(
-      new AgregarItemCommand(
-        id,
-        dto.productoId,
-        dto.cantidad,
-        dto.precioUnitario,
-      ),
+      new AgregarItemCommand(id, dto.platoId, dto.cantidad, dto.observacion),
     );
     const pedido = await this.repo.buscarPorId(id);
     return this.mapearADto(pedido!);
@@ -136,12 +132,14 @@ export class PedidoController {
     dto.tipo = pedido.tipo;
     dto.estado = pedido.estado;
     dto.createdAt = pedido.createdAt;
+    dto.observacion = pedido.observacion ?? undefined;
     dto.items = pedido.items.map((item) => {
       const itemDto = new ItemPedidoResponseDto();
       itemDto.id = item.id;
-      itemDto.productoId = item.productoId;
+      itemDto.platoId = item.platoId;
       itemDto.cantidad = item.cantidad;
       itemDto.precioUnitario = item.precioUnitario.monto;
+      itemDto.observacion = item.observacion;
       return itemDto;
     });
     return dto;
