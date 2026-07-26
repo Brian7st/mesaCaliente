@@ -1,6 +1,6 @@
 # Restaurant Backend — DDD + Hexagonal + CQRS
 
-Backend for a restaurant management system, built with **NestJS** to demonstrate **Domain-Driven Design (DDD)**, **Hexagonal Architecture (Ports & Adapters)** and **SOLID**. It models the full operational flow of a restaurant: table occupancy, order taking, kitchen preparation, inventory, billing/checkout, and home delivery.
+Backend for a restaurant management system, built with **NestJS** to demonstrate **Domain-Driven Design (DDD)**, **Hexagonal Architecture (Ports & Adapters)** and **SOLID**. It models the full operational flow of a restaurant: menu and recipes, table occupancy, order taking, kitchen preparation, inventory (with stock movements and reservation lifecycle), billing/checkout, and home delivery.
 
 It is a **modular monolith**: a single Node.js process where each Bounded Context is a self-contained NestJS module. Contexts communicate **only through Domain Events** (`@nestjs/cqrs` `EventBus`) — never by direct calls.
 
@@ -48,13 +48,16 @@ npm run start:dev
 | Context | Root | Type | Responsibility |
 |---|---|---|---|
 | **Pedidos** | `Pedido` | Core Domain | Order lifecycle and its items |
+| Carta | `Plato` | Supporting | Menu: dishes with their own price and recipe |
 | Mesas | `Mesa` | Supporting | Table occupancy |
 | Cocina | `OrdenCocina` | Supporting | Preparation of confirmed orders |
-| Inventario | `Producto` | Supporting | Stock and reservation |
+| Inventario | `Producto` | Supporting | Ingredient stock, movements (kardex) and reservation |
 | Caja | `Cuenta` | Supporting | Billing and payments |
 | Domicilios | `Domicilio` | Supporting | Home deliveries |
 
-> The ubiquitous language is Spanish (Pedido, Mesa, Cocina, Cuenta…): the business language is reflected literally in the code.
+> The ubiquitous language is Spanish (Pedido, Plato, Mesa, Cocina, Cuenta…): the business language is reflected literally in the code.
+
+> **Plato vs Producto.** A `Plato` (Carta) is what the customer buys — it has a sale price and a recipe. A `Producto` (Inventario) is an *ingredient* consumed by recipes and tracked as stock. An order references dishes (`platoId`); Carta explodes each dish's recipe into the ingredients Inventario must reserve.
 
 Each context is its own hexagon:
 
@@ -75,29 +78,34 @@ src/<context>/
 - **CQRS** — every state change is a `Command` + `Handler`. Handlers only orchestrate (load aggregate → invoke business method → persist → let events flow). All invariants live inside the aggregate.
 - **Domain Events** — the only channel between contexts. A context reacts by importing *only* the event class from the publisher; the publisher is never modified.
 - **Single canonical emitter** — each event has exactly one owner. `PedidoListo` is emitted only by `Cocina`; Pedidos reacts to it without re-emitting.
-- **Choreographed Saga** — no central orchestrator. On `PedidoConfirmado`, Inventario reserves stock; on failure it emits `ReservaStockFallida` and Pedidos compensates by cancelling the order.
+- **Choreographed Saga** — no central orchestrator. On `PedidoConfirmado`, Carta explodes the dishes' recipes and emits `InsumosRequeridos`; Inventario reserves the ingredients; on failure it emits `ReservaStockFallida` and Pedidos compensates by cancelling the order.
+- **Catalog projection** — Pedidos keeps a local read-model of Carta (`PlatoCatalogo`), fed by `PlatoCreado`/`PrecioActualizado`/`DisponibilidadCambiada`. When an item is added, the price is **snapshotted** from that projection into the order line — the client never sends a price.
+- **Reservation lifecycle** — reserved ingredients are **consumed** when the order becomes `LISTO` (stock drops, `SALIDA` movement) and **released** if the order is cancelled (`LIBERACION`). Every stock change is recorded in an append-only kardex (`MovimientoInventario`).
 - **Outbox** — domain events are written to an `OutboxEvent` table inside the same transaction as the aggregate, and a dispatcher publishes them to the `EventBus` **sequentially, one cycle at a time**. This gives deterministic event ordering over the in-memory bus. Consequence: event propagation is **eventual** (sub-second dispatcher latency), not synchronous.
 - **Centralized errors** — domain exceptions extend `DomainException`; a global filter maps them to HTTP (`NO_ENCONTRADO` → 404, business-rule violations → 400). Controllers never `try/catch` domain errors.
 
 ### Event flow
 
 ```
-Pedidos --PedidoConfirmado--> Inventario --StockReservado/ReservaStockFallida--> Pedidos
-Pedidos --PedidoConfirmado--> Cocina --PedidoListo--> Pedidos
+Pedidos --PedidoConfirmado--> Carta      --InsumosRequeridos--> Inventario --StockReservado/ReservaStockFallida--> Pedidos
+Pedidos --PedidoConfirmado--> Cocina     --PedidoListo--> Pedidos (LISTO) + Inventario (consume reserva → SALIDA)
 Pedidos --PedidoConfirmado--> Caja        (adds a line to the table's Cuenta)
 Pedidos --PedidoCancelado---> Caja        (removes the line)
 Pedidos --PedidoCancelado---> Cocina      (discards the OrdenCocina)
+Pedidos --PedidoCancelado---> Inventario  (release reserva → LIBERACION)
 Pedidos --PedidoConfirmado--> Mesas       (occupies the table, if any)
 Pedidos --PedidoConfirmado--> Domicilios  (only if tipo = DOMICILIO)
 Caja    --PagoRegistrado----> Pedidos (mark PAGADO) and Mesas (free the table)
+Carta   --PlatoCreado/PrecioActualizado/DisponibilidadCambiada--> Pedidos (catalog projection)
 ```
 
 ### End-to-end lifecycle
 
 ```
-Pedido:  BORRADOR → CONFIRMADO → EN_PREPARACION → LISTO → PAGADO   (or → CANCELADO)
-Mesa:    OCUPADA (on confirm) ───────────────────────────→ LIBRE (on payment)
-Cuenta:  ABIERTA (on confirm) ───────────────────────────→ PAGADA (on payment)
+Pedido:     BORRADOR → CONFIRMADO → EN_PREPARACION → LISTO → PAGADO   (or → CANCELADO)
+Mesa:       OCUPADA (on confirm) ───────────────────────────→ LIBRE (on payment)
+Cuenta:     ABIERTA (on confirm) ───────────────────────────→ PAGADA (on payment)
+Ingredient: reservado (on confirm) → consumido/SALIDA (on LISTO)  or  liberado/LIBERACION (on cancel)
 ```
 
 ## API overview
@@ -105,13 +113,14 @@ Cuenta:  ABIERTA (on confirm) ────────────────�
 | Context | Endpoints |
 |---|---|
 | Pedidos | `POST /pedidos` · `POST /pedidos/:id/items` · `POST /pedidos/:id/confirmar` · `GET /pedidos/:id` · `GET /pedidos?estado=` |
+| Carta | `POST /carta/platos` · `GET /carta/platos` · `GET /carta/platos/:id` · `PATCH /carta/platos/:id/precio` · `PATCH /carta/platos/:id/disponibilidad` · `PUT /carta/platos/:id/receta` |
 | Mesas | `POST /mesas` · `GET /mesas` · `PATCH /mesas/:id/liberar` |
-| Cocina | `GET /cocina/ordenes?estado=` · `PATCH /cocina/ordenes/:id/iniciar` · `PATCH /cocina/ordenes/:id/items/:productoId/preparar` · `PATCH /cocina/ordenes/:id/finalizar` |
-| Inventario | `POST /inventario/productos` · `GET /inventario/productos` · `PATCH /inventario/productos/:id/reponer` |
+| Cocina | `GET /cocina/ordenes?estado=` · `PATCH /cocina/ordenes/:id/iniciar` · `PATCH /cocina/ordenes/:id/items/:platoId/preparar` · `PATCH /cocina/ordenes/:id/finalizar` |
+| Inventario | `POST /inventario/productos` · `GET /inventario/productos` · `GET /inventario/productos/:id` · `PATCH /inventario/productos/:id/reponer` · `POST /inventario/productos/:id/salida` · `GET /inventario/productos/:id/movimientos` |
 | Caja | `GET /caja/cuentas` · `GET /caja/cuentas/:id` · `POST /caja/cuentas/:id/pagar` |
 | Domicilios | `GET /domicilios` · `PATCH /domicilios/:id/iniciar-entrega` · `PATCH /domicilios/:id/confirmar-entrega` |
 
-A LOCAL order needs a `mesaId`; a DOMICILIO order needs a `direccion` (`{ calle, ciudad, referencia? }`), validated at creation. Kitchen orders and stock reservations appear automatically after an order is confirmed (via the Outbox dispatcher — allow ~1 second).
+An order item is added by `platoId` (with an optional `observacion` for the kitchen); the price is taken from the catalog projection, **not** sent by the client. A LOCAL order needs a `mesaId`; a DOMICILIO order needs a `direccion` (`{ calle, ciudad, referencia? }`), validated at creation. Kitchen orders and ingredient reservations appear automatically after an order is confirmed (via the Outbox dispatcher — allow ~1 second). List endpoints are offset-paginated (`?page=&limit=`) and return `{ data, meta: { total, page, limit, totalPages } }`.
 
 ## Key design decisions
 
@@ -122,6 +131,6 @@ A LOCAL order needs a `mesaId`; a DOMICILIO order needs a `direccion` (`{ calle,
 
 ## Scope
 
-Included: the 6 Bounded Contexts, REST API with Swagger, event-driven integration, simplified Saga and Outbox, centralized error handling.
+Included: the 7 Bounded Contexts, REST API with Swagger, event-driven integration, catalog projection with price snapshot, ingredient reservation lifecycle with kardex, simplified Saga and Outbox, centralized error handling, offset pagination.
 
 Not included (by design): frontend, authentication/authorization, automated tests, full Event Sourcing, external messaging (Kafka/RabbitMQ), cloud deployment, microservices.
