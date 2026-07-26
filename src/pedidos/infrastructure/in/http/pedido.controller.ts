@@ -39,7 +39,12 @@ export class PedidoController {
   async crear(@Body() dto: CrearPedidoDto): Promise<PedidoResponseDto> {
     const pedidoId = randomUUID();
     await this.commandBus.execute(
-      new CrearPedidoCommand(pedidoId, dto.mesaId ?? null, dto.tipo),
+      new CrearPedidoCommand(
+        pedidoId,
+        dto.mesaId ?? null,
+        dto.tipo,
+        dto.direccion ?? null,
+      ),
     );
     const pedido = await this.repo.buscarPorId(pedidoId);
     return this.mapearADto(pedido!);

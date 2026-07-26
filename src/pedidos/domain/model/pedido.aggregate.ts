@@ -12,6 +12,16 @@ import { PedidoCancelado } from '../events/pedido-cancelado.event';
 export type TipoPedido = 'LOCAL' | 'DOMICILIO';
 
 /**
+ * Datos de entrega que el pedido transporta hasta Domicilios. Pedidos no valida
+ * ni modela la direccion (eso es del contexto Domicilios); solo la lleva.
+ */
+export type DireccionPedido = {
+  calle: string;
+  ciudad: string;
+  referencia?: string;
+};
+
+/**
  * Aggregate Root del Core Domain. Toda regla de negocio del pedido vive aca.
  * Acumula Domain Events que el Command Handler publica DESPUES de persistir.
  */
@@ -26,13 +36,27 @@ export class Pedido {
     private _estado: EstadoPedido,
     items: ItemPedido[],
     private readonly _createdAt: Date,
+    private readonly _direccion: DireccionPedido | null,
   ) {
     this._items = items;
   }
 
   /** Crea un pedido nuevo en estado BORRADOR. */
-  static crear(id: string, mesaId: string | null, tipo: TipoPedido): Pedido {
-    return new Pedido(id, mesaId, tipo, EstadoPedido.BORRADOR, [], new Date());
+  static crear(
+    id: string,
+    mesaId: string | null,
+    tipo: TipoPedido,
+    direccion: DireccionPedido | null = null,
+  ): Pedido {
+    return new Pedido(
+      id,
+      mesaId,
+      tipo,
+      EstadoPedido.BORRADOR,
+      [],
+      new Date(),
+      direccion,
+    );
   }
 
   /** Reconstituye un pedido existente desde la persistencia (sin eventos). */
@@ -43,6 +67,7 @@ export class Pedido {
     estado: EstadoPedido;
     items: ItemPedido[];
     createdAt: Date;
+    direccion: DireccionPedido | null;
   }): Pedido {
     return new Pedido(
       params.id,
@@ -51,6 +76,7 @@ export class Pedido {
       params.estado,
       params.items,
       params.createdAt,
+      params.direccion,
     );
   }
 
@@ -83,6 +109,7 @@ export class Pedido {
         })),
         this.total(),
         new Date(),
+        this._direccion,
       ),
     );
   }
@@ -160,5 +187,9 @@ export class Pedido {
 
   get createdAt(): Date {
     return this._createdAt;
+  }
+
+  get direccion(): DireccionPedido | null {
+    return this._direccion;
   }
 }

@@ -310,6 +310,7 @@ Para el procedimiento exacto de creación de un endpoint, usa el skill `document
 - VO `Dinero { monto, moneda: 'COP' }`, inmutable, `monto >= 0`.
 - Reglas: no se agregan ítems fuera de `BORRADOR`; no se confirma sin ítems.
 - Eventos publicados: `PedidoConfirmado`, `PedidoCancelado`. (`PedidoListo` NO lo publica Pedidos: su emisor canónico es Cocina; Pedidos reacciona a él en `marcarListo()`, sin reemitirlo.)
+- El pedido transporta una `direccion` de entrega opcional (`{ calle, ciudad, referencia? }`), obligatoria cuando `tipo === 'DOMICILIO'`. Viaja en el payload de `PedidoConfirmado` para que Domicilios pueda crear la entrega. Pedidos no valida ni modela la dirección (el VO `Direccion` con validación vive en Domicilios); solo la lleva.
 
 ### 7.2 Mesa (Aggregate Root — `src/mesas/`)
 - Atributos: `id`, `numero`, `estado: 'LIBRE' | 'OCUPADA'`.

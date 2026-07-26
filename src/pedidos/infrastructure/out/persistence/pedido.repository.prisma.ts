@@ -49,6 +49,9 @@ export class PedidoRepositoryPrisma implements PedidoRepository {
           tipo: pedido.tipo,
           estado,
           createdAt: pedido.createdAt,
+          calle: pedido.direccion?.calle ?? null,
+          ciudad: pedido.direccion?.ciudad ?? null,
+          referencia: pedido.direccion?.referencia ?? null,
         },
         update: {
           mesaId: pedido.mesaId,
@@ -88,6 +91,13 @@ export class PedidoRepositoryPrisma implements PedidoRepository {
           ),
       ),
       createdAt: row.createdAt,
+      direccion: row.calle
+        ? {
+            calle: row.calle,
+            ciudad: row.ciudad ?? '',
+            referencia: row.referencia ?? undefined,
+          }
+        : null,
     });
   }
 }
