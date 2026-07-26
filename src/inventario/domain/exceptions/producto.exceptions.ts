@@ -5,3 +5,9 @@ export class StockInsuficienteException extends DomainException {
     super(`Stock insuficiente para reservar el producto ${productoId}.`);
   }
 }
+
+export class ProductoNoEncontradoException extends DomainException {
+  constructor(productoId: string) {
+    super(`El producto ${productoId} no existe en el inventario.`, 'NO_ENCONTRADO');
+  }
+}
