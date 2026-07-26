@@ -55,6 +55,7 @@ enum EstadoOrdenCocinaDb {
   PENDIENTE
   EN_PREPARACION
   LISTA
+  DESCARTADA
 }
 
 model OrdenCocina {

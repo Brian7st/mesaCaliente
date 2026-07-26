@@ -24,6 +24,14 @@ export class OrdenCocinaRepositoryPrisma implements OrdenCocinaRepository {
     return row ? this.aDominio(row) : null;
   }
 
+  async buscarPorPedidoId(pedidoId: string): Promise<OrdenCocina | null> {
+    const row = await this.prisma.ordenCocina.findFirst({
+      where: { pedidoId },
+      include: { items: true },
+    });
+    return row ? this.aDominio(row) : null;
+  }
+
   async listar(estado?: EstadoOrdenCocina): Promise<OrdenCocina[]> {
     const rows = await this.prisma.ordenCocina.findMany({
       where: estado

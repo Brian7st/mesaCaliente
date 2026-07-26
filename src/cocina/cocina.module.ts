@@ -5,6 +5,7 @@ import { IniciarPreparacionHandler } from './application/commands/iniciar-prepar
 import { MarcarItemPreparadoHandler } from './application/commands/marcar-item-preparado/marcar-item-preparado.handler';
 import { FinalizarOrdenHandler } from './application/commands/finalizar-orden/finalizar-orden.handler';
 import { OnPedidoConfirmadoHandler } from './application/event-handlers/on-pedido-confirmado.handler';
+import { OnPedidoCanceladoHandler } from './application/event-handlers/on-pedido-cancelado.handler';
 import { OrdenCocinaRepositoryPrisma } from './infrastructure/out/persistence/orden-cocina.repository.prisma';
 
 const CommandHandlers = [
@@ -12,7 +13,7 @@ const CommandHandlers = [
   MarcarItemPreparadoHandler,
   FinalizarOrdenHandler,
 ];
-const EventHandlers = [OnPedidoConfirmadoHandler];
+const EventHandlers = [OnPedidoConfirmadoHandler, OnPedidoCanceladoHandler];
 
 @Module({
   imports: [CqrsModule],

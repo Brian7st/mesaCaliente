@@ -83,6 +83,20 @@ export class OrdenCocina {
     this._eventos.push(new PedidoListo(this._pedidoId, new Date()));
   }
 
+  /**
+   * Descarta la orden cuando el pedido asociado fue cancelado. No se puede
+   * descartar una orden ya LISTA (la comida ya se preparo).
+   */
+  descartar(): void {
+    if (this._estado === EstadoOrdenCocina.LISTA) {
+      throw new TransicionOrdenInvalidaException(
+        this._estado,
+        EstadoOrdenCocina.DESCARTADA,
+      );
+    }
+    this._estado = EstadoOrdenCocina.DESCARTADA;
+  }
+
   obtenerEventos(): object[] {
     return [...this._eventos];
   }
