@@ -1,4 +1,11 @@
-import { Controller, Get, Inject, Param, Patch } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Inject,
+  NotFoundException,
+  Param,
+  Patch,
+} from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import {
@@ -25,6 +32,18 @@ export class DomicilioController {
   async listar(): Promise<DomicilioResponseDto[]> {
     const domicilios = await this.repo.listar();
     return domicilios.map((domicilio) => this.mapearADto(domicilio));
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Obtiene un domicilio por su ID' })
+  @ApiResponse({ status: 200, type: DomicilioResponseDto })
+  @ApiResponse({ status: 404, description: 'Domicilio no encontrado' })
+  async obtener(@Param('id') id: string): Promise<DomicilioResponseDto> {
+    const domicilio = await this.repo.buscarPorId(id);
+    if (!domicilio) {
+      throw new NotFoundException('Domicilio no encontrado');
+    }
+    return this.mapearADto(domicilio);
   }
 
   @Patch(':id/iniciar-entrega')
