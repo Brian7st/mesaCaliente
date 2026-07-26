@@ -4,6 +4,7 @@ import { PrismaService } from '../../../../shared/infrastructure/prisma/prisma.s
 import { ProductoRepository } from '../../../domain/ports/out/producto.repository';
 import { Producto } from '../../../domain/model/producto.aggregate';
 import { Cantidad } from '../../../domain/model/cantidad.vo';
+import { Pagina, ParametrosPaginacion } from '../../../../shared/application/pagina';
 
 @Injectable()
 export class ProductoRepositoryPrisma implements ProductoRepository {
@@ -14,11 +15,21 @@ export class ProductoRepositoryPrisma implements ProductoRepository {
     return row ? this.aDominio(row) : null;
   }
 
-  async listar(): Promise<Producto[]> {
-    const rows = await this.prisma.producto.findMany({
-      orderBy: { nombre: 'asc' },
-    });
-    return rows.map((row) => this.aDominio(row));
+  async listar(paginacion: ParametrosPaginacion): Promise<Pagina<Producto>> {
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.producto.findMany({
+        orderBy: { nombre: 'asc' },
+        skip: (paginacion.page - 1) * paginacion.limit,
+        take: paginacion.limit,
+      }),
+      this.prisma.producto.count(),
+    ]);
+    return {
+      items: rows.map((row) => this.aDominio(row)),
+      total,
+      page: paginacion.page,
+      limit: paginacion.limit,
+    };
   }
 
   async guardar(producto: Producto): Promise<void> {

@@ -1,4 +1,5 @@
 import { Cuenta } from '../../model/cuenta.aggregate';
+import { Pagina, ParametrosPaginacion } from '../../../../shared/application/pagina';
 
 /**
  * Puerto de salida del Bounded Context Caja.
@@ -10,5 +11,5 @@ export interface CuentaRepository {
   /** Cuenta que contiene la linea de un pedido (para quitarla al cancelarse). */
   buscarPorPedidoId(pedidoId: string): Promise<Cuenta | null>;
   guardar(cuenta: Cuenta): Promise<void>;
-  listar(): Promise<Cuenta[]>;
+  listar(paginacion: ParametrosPaginacion): Promise<Pagina<Cuenta>>;
 }

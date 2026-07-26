@@ -10,6 +10,7 @@ import { OrdenCocina } from '../../../domain/model/orden-cocina.aggregate';
 import { ItemOrden } from '../../../domain/model/item-orden.entity';
 import { EstadoOrdenCocina } from '../../../domain/model/estado-orden-cocina.vo';
 import { aFilaOutbox } from '../../../../shared/infrastructure/outbox/outbox.mapper';
+import { Pagina, ParametrosPaginacion } from '../../../../shared/application/pagina';
 
 type OrdenConItems = OrdenRow & { items: ItemOrdenRow[] };
 
@@ -33,14 +34,28 @@ export class OrdenCocinaRepositoryPrisma implements OrdenCocinaRepository {
     return row ? this.aDominio(row) : null;
   }
 
-  async listar(estado?: EstadoOrdenCocina): Promise<OrdenCocina[]> {
-    const rows = await this.prisma.ordenCocina.findMany({
-      where: estado
-        ? { estado: estado as unknown as EstadoOrdenCocinaDb }
-        : undefined,
-      include: { items: true },
-    });
-    return rows.map((row) => this.aDominio(row));
+  async listar(
+    paginacion: ParametrosPaginacion,
+    estado?: EstadoOrdenCocina,
+  ): Promise<Pagina<OrdenCocina>> {
+    const where = estado
+      ? { estado: estado as unknown as EstadoOrdenCocinaDb }
+      : undefined;
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.ordenCocina.findMany({
+        where,
+        include: { items: true },
+        skip: (paginacion.page - 1) * paginacion.limit,
+        take: paginacion.limit,
+      }),
+      this.prisma.ordenCocina.count({ where }),
+    ]);
+    return {
+      items: rows.map((row) => this.aDominio(row)),
+      total,
+      page: paginacion.page,
+      limit: paginacion.limit,
+    };
   }
 
   async guardar(orden: OrdenCocina): Promise<void> {

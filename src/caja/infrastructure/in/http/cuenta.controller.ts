@@ -5,13 +5,19 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
 } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import {
   CuentaResponseDto,
   LineaCuentaResponseDto,
+  CuentasPaginadasDto,
 } from './dto/cuenta-response.dto';
+import {
+  construirMeta,
+  resolverPaginacion,
+} from '../../../../shared/infrastructure/http/paginacion';
 import { RegistrarPagoCommand } from '../../../application/commands/registrar-pago/registrar-pago.command';
 import { CuentaRepository } from '../../../domain/ports/out/cuenta.repository';
 import { Cuenta } from '../../../domain/model/cuenta.aggregate';
@@ -25,11 +31,20 @@ export class CuentaController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'Lista las cuentas con sus lineas y total' })
-  @ApiResponse({ status: 200, type: [CuentaResponseDto] })
-  async listar(): Promise<CuentaResponseDto[]> {
-    const cuentas = await this.repo.listar();
-    return cuentas.map((cuenta) => this.mapearADto(cuenta));
+  @ApiOperation({ summary: 'Lista paginada de cuentas con sus lineas y total' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiResponse({ status: 200, type: CuentasPaginadasDto })
+  async listar(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ): Promise<CuentasPaginadasDto> {
+    const paginacion = resolverPaginacion(page, limit);
+    const pagina = await this.repo.listar(paginacion);
+    return {
+      data: pagina.items.map((cuenta) => this.mapearADto(cuenta)),
+      meta: construirMeta(pagina.total, pagina.page, pagina.limit),
+    };
   }
 
   @Get(':id')

@@ -9,6 +9,7 @@ import { DomicilioRepository } from '../../../domain/ports/out/domicilio.reposit
 import { Domicilio } from '../../../domain/model/domicilio.aggregate';
 import { Direccion } from '../../../domain/model/direccion.vo';
 import { EstadoDomicilio } from '../../../domain/model/estado-domicilio.vo';
+import { Pagina, ParametrosPaginacion } from '../../../../shared/application/pagina';
 
 @Injectable()
 export class DomicilioRepositoryPrisma implements DomicilioRepository {
@@ -19,9 +20,20 @@ export class DomicilioRepositoryPrisma implements DomicilioRepository {
     return row ? this.aDominio(row) : null;
   }
 
-  async listar(): Promise<Domicilio[]> {
-    const rows = await this.prisma.domicilio.findMany();
-    return rows.map((row) => this.aDominio(row));
+  async listar(paginacion: ParametrosPaginacion): Promise<Pagina<Domicilio>> {
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.domicilio.findMany({
+        skip: (paginacion.page - 1) * paginacion.limit,
+        take: paginacion.limit,
+      }),
+      this.prisma.domicilio.count(),
+    ]);
+    return {
+      items: rows.map((row) => this.aDominio(row)),
+      total,
+      page: paginacion.page,
+      limit: paginacion.limit,
+    };
   }
 
   async guardar(domicilio: Domicilio): Promise<void> {

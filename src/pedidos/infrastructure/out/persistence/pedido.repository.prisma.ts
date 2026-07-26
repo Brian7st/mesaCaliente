@@ -11,6 +11,7 @@ import { ItemPedido } from '../../../domain/model/item-pedido.entity';
 import { Dinero } from '../../../domain/model/dinero.vo';
 import { EstadoPedido } from '../../../domain/model/estado-pedido.vo';
 import { aFilaOutbox } from '../../../../shared/infrastructure/outbox/outbox.mapper';
+import { Pagina, ParametrosPaginacion } from '../../../../shared/application/pagina';
 
 type PedidoConItems = PedidoRow & { items: ItemPedidoRow[] };
 
@@ -26,13 +27,29 @@ export class PedidoRepositoryPrisma implements PedidoRepository {
     return row ? this.aDominio(row) : null;
   }
 
-  async listar(estado?: EstadoPedido): Promise<Pedido[]> {
-    const rows = await this.prisma.pedido.findMany({
-      where: estado ? { estado: estado as unknown as EstadoPedidoDb } : undefined,
-      include: { items: true },
-      orderBy: { createdAt: 'desc' },
-    });
-    return rows.map((row) => this.aDominio(row));
+  async listar(
+    paginacion: ParametrosPaginacion,
+    estado?: EstadoPedido,
+  ): Promise<Pagina<Pedido>> {
+    const where = estado
+      ? { estado: estado as unknown as EstadoPedidoDb }
+      : undefined;
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.pedido.findMany({
+        where,
+        include: { items: true },
+        orderBy: { createdAt: 'desc' },
+        skip: (paginacion.page - 1) * paginacion.limit,
+        take: paginacion.limit,
+      }),
+      this.prisma.pedido.count({ where }),
+    ]);
+    return {
+      items: rows.map((row) => this.aDominio(row)),
+      total,
+      page: paginacion.page,
+      limit: paginacion.limit,
+    };
   }
 
   async guardar(pedido: Pedido): Promise<void> {

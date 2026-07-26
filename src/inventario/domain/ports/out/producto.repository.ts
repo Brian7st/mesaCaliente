@@ -1,4 +1,5 @@
 import { Producto } from '../../model/producto.aggregate';
+import { Pagina, ParametrosPaginacion } from '../../../../shared/application/pagina';
 
 /**
  * Puerto de salida del Bounded Context Inventario. `guardarVarios` permite
@@ -9,5 +10,5 @@ export interface ProductoRepository {
   buscarPorId(id: string): Promise<Producto | null>;
   guardar(producto: Producto): Promise<void>;
   guardarVarios(productos: Producto[]): Promise<void>;
-  listar(): Promise<Producto[]>;
+  listar(paginacion: ParametrosPaginacion): Promise<Pagina<Producto>>;
 }

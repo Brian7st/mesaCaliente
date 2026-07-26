@@ -9,7 +9,15 @@ import {
 } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { OrdenCocinaResponseDto, ItemOrdenResponseDto } from './dto/orden-cocina-response.dto';
+import {
+  OrdenCocinaResponseDto,
+  ItemOrdenResponseDto,
+  OrdenesCocinaPaginadasDto,
+} from './dto/orden-cocina-response.dto';
+import {
+  construirMeta,
+  resolverPaginacion,
+} from '../../../../shared/infrastructure/http/paginacion';
 import { IniciarPreparacionCommand } from '../../../application/commands/iniciar-preparacion/iniciar-preparacion.command';
 import { MarcarItemPreparadoCommand } from '../../../application/commands/marcar-item-preparado/marcar-item-preparado.command';
 import { FinalizarOrdenCommand } from '../../../application/commands/finalizar-orden/finalizar-orden.command';
@@ -33,12 +41,20 @@ export class OrdenCocinaController {
     required: false,
     enum: ['PENDIENTE', 'EN_PREPARACION', 'LISTA'],
   })
-  @ApiResponse({ status: 200, type: [OrdenCocinaResponseDto] })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiResponse({ status: 200, type: OrdenesCocinaPaginadasDto })
   async listar(
     @Query('estado') estado?: EstadoOrdenCocina,
-  ): Promise<OrdenCocinaResponseDto[]> {
-    const ordenes = await this.repo.listar(estado);
-    return ordenes.map((orden) => this.mapearADto(orden));
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ): Promise<OrdenesCocinaPaginadasDto> {
+    const paginacion = resolverPaginacion(page, limit);
+    const pagina = await this.repo.listar(paginacion, estado);
+    return {
+      data: pagina.items.map((orden) => this.mapearADto(orden)),
+      meta: construirMeta(pagina.total, pagina.page, pagina.limit),
+    };
   }
 
   @Get(':id')

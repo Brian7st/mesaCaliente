@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { MetaPaginacionDto } from '../../../../../shared/infrastructure/http/meta-paginacion.dto';
 
 export class ItemOrdenResponseDto {
   @ApiProperty({ example: 'prod-abc-123' })
@@ -26,4 +27,12 @@ export class OrdenCocinaResponseDto {
 
   @ApiProperty({ type: [ItemOrdenResponseDto] })
   items: ItemOrdenResponseDto[];
+}
+
+export class OrdenesCocinaPaginadasDto {
+  @ApiProperty({ type: [OrdenCocinaResponseDto] })
+  data: OrdenCocinaResponseDto[];
+
+  @ApiProperty({ type: MetaPaginacionDto })
+  meta: MetaPaginacionDto;
 }

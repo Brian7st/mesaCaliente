@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { MetaPaginacionDto } from '../../../../../shared/infrastructure/http/meta-paginacion.dto';
 
 export class DireccionResponseDto {
   @ApiProperty({ example: 'Cra 7 # 45-12' })
@@ -26,4 +27,12 @@ export class DomicilioResponseDto {
     example: 'ASIGNADO',
   })
   estado: string;
+}
+
+export class DomiciliosPaginadosDto {
+  @ApiProperty({ type: [DomicilioResponseDto] })
+  data: DomicilioResponseDto[];
+
+  @ApiProperty({ type: MetaPaginacionDto })
+  meta: MetaPaginacionDto;
 }

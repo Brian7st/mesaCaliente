@@ -7,12 +7,17 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { randomUUID } from 'crypto';
 import { CrearMesaDto } from './dto/crear-mesa.dto';
-import { MesaResponseDto } from './dto/mesa-response.dto';
+import { MesaResponseDto, MesasPaginadasDto } from './dto/mesa-response.dto';
+import {
+  construirMeta,
+  resolverPaginacion,
+} from '../../../../shared/infrastructure/http/paginacion';
 import { CrearMesaCommand } from '../../../application/commands/crear-mesa/crear-mesa.command';
 import { LiberarMesaCommand } from '../../../application/commands/liberar-mesa/liberar-mesa.command';
 import { MesaRepository } from '../../../domain/ports/out/mesa.repository';
@@ -38,11 +43,20 @@ export class MesaController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Lista todas las mesas con su estado' })
-  @ApiResponse({ status: 200, type: [MesaResponseDto] })
-  async listar(): Promise<MesaResponseDto[]> {
-    const mesas = await this.repo.listar();
-    return mesas.map((mesa) => this.mapearADto(mesa));
+  @ApiOperation({ summary: 'Lista paginada de mesas con su estado' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiResponse({ status: 200, type: MesasPaginadasDto })
+  async listar(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ): Promise<MesasPaginadasDto> {
+    const paginacion = resolverPaginacion(page, limit);
+    const pagina = await this.repo.listar(paginacion);
+    return {
+      data: pagina.items.map((mesa) => this.mapearADto(mesa)),
+      meta: construirMeta(pagina.total, pagina.page, pagina.limit),
+    };
   }
 
   @Get(':id')

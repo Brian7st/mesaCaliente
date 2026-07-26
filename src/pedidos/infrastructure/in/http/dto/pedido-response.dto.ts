@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { MetaPaginacionDto } from '../../../../../shared/infrastructure/http/meta-paginacion.dto';
 
 export class ItemPedidoResponseDto {
   @ApiProperty({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
@@ -46,4 +47,12 @@ export class PedidoResponseDto {
 
   @ApiProperty({ example: '2026-07-25T12:00:00.000Z' })
   createdAt: Date;
+}
+
+export class PedidosPaginadosDto {
+  @ApiProperty({ type: [PedidoResponseDto] })
+  data: PedidoResponseDto[];
+
+  @ApiProperty({ type: MetaPaginacionDto })
+  meta: MetaPaginacionDto;
 }

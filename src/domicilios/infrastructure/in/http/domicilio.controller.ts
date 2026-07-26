@@ -5,13 +5,19 @@ import {
   NotFoundException,
   Param,
   Patch,
+  Query,
 } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import {
   DireccionResponseDto,
   DomicilioResponseDto,
+  DomiciliosPaginadosDto,
 } from './dto/domicilio-response.dto';
+import {
+  construirMeta,
+  resolverPaginacion,
+} from '../../../../shared/infrastructure/http/paginacion';
 import { IniciarEntregaCommand } from '../../../application/commands/iniciar-entrega/iniciar-entrega.command';
 import { ConfirmarEntregaCommand } from '../../../application/commands/confirmar-entrega/confirmar-entrega.command';
 import { DomicilioRepository } from '../../../domain/ports/out/domicilio.repository';
@@ -27,11 +33,20 @@ export class DomicilioController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'Lista los domicilios con su estado de entrega' })
-  @ApiResponse({ status: 200, type: [DomicilioResponseDto] })
-  async listar(): Promise<DomicilioResponseDto[]> {
-    const domicilios = await this.repo.listar();
-    return domicilios.map((domicilio) => this.mapearADto(domicilio));
+  @ApiOperation({ summary: 'Lista paginada de domicilios con su estado de entrega' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiResponse({ status: 200, type: DomiciliosPaginadosDto })
+  async listar(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ): Promise<DomiciliosPaginadosDto> {
+    const paginacion = resolverPaginacion(page, limit);
+    const pagina = await this.repo.listar(paginacion);
+    return {
+      data: pagina.items.map((domicilio) => this.mapearADto(domicilio)),
+      meta: construirMeta(pagina.total, pagina.page, pagina.limit),
+    };
   }
 
   @Get(':id')
