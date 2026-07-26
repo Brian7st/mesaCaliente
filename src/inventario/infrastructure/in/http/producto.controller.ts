@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Inject,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -46,6 +47,18 @@ export class ProductoController {
   async listar(): Promise<ProductoResponseDto[]> {
     const productos = await this.repo.listar();
     return productos.map((producto) => this.mapearADto(producto));
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Obtiene un producto por su ID' })
+  @ApiResponse({ status: 200, type: ProductoResponseDto })
+  @ApiResponse({ status: 404, description: 'Producto no encontrado' })
+  async obtener(@Param('id') id: string): Promise<ProductoResponseDto> {
+    const producto = await this.repo.buscarPorId(id);
+    if (!producto) {
+      throw new NotFoundException('Producto no encontrado');
+    }
+    return this.mapearADto(producto);
   }
 
   @Patch(':id/reponer')

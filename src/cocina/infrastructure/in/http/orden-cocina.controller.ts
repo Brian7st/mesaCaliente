@@ -1,4 +1,12 @@
-import { Controller, Get, Inject, Param, Patch, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Inject,
+  NotFoundException,
+  Param,
+  Patch,
+  Query,
+} from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { OrdenCocinaResponseDto, ItemOrdenResponseDto } from './dto/orden-cocina-response.dto';
@@ -31,6 +39,18 @@ export class OrdenCocinaController {
   ): Promise<OrdenCocinaResponseDto[]> {
     const ordenes = await this.repo.listar(estado);
     return ordenes.map((orden) => this.mapearADto(orden));
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Obtiene una orden de cocina por su ID' })
+  @ApiResponse({ status: 200, type: OrdenCocinaResponseDto })
+  @ApiResponse({ status: 404, description: 'Orden no encontrada' })
+  async obtener(@Param('id') id: string): Promise<OrdenCocinaResponseDto> {
+    const orden = await this.repo.buscarPorId(id);
+    if (!orden) {
+      throw new NotFoundException('Orden de cocina no encontrada');
+    }
+    return this.mapearADto(orden);
   }
 
   @Patch(':id/iniciar')

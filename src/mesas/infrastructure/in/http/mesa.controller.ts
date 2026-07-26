@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Inject,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -42,6 +43,18 @@ export class MesaController {
   async listar(): Promise<MesaResponseDto[]> {
     const mesas = await this.repo.listar();
     return mesas.map((mesa) => this.mapearADto(mesa));
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Obtiene una mesa por su ID' })
+  @ApiResponse({ status: 200, type: MesaResponseDto })
+  @ApiResponse({ status: 404, description: 'Mesa no encontrada' })
+  async obtener(@Param('id') id: string): Promise<MesaResponseDto> {
+    const mesa = await this.repo.buscarPorId(id);
+    if (!mesa) {
+      throw new NotFoundException('Mesa no encontrada');
+    }
+    return this.mapearADto(mesa);
   }
 
   @Patch(':id/liberar')
