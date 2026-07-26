@@ -88,6 +88,36 @@ model Producto {
   stockReservado Int    @default(0)
 }
 
+enum TipoMovimientoDb {
+  ENTRADA
+  SALIDA
+  RESERVA
+  LIBERACION
+}
+
+// Kardex append-only: historico de movimientos de stock de cada Producto.
+model MovimientoInventario {
+  id         String           @id @default(uuid())
+  productoId String
+  tipo       TipoMovimientoDb
+  cantidad   Int
+  motivo     String?
+  fecha      DateTime         @default(now())
+
+  @@index([productoId, fecha])
+}
+
+// Registro de reserva por pedido: que insumos y cuanto quedaron apartados,
+// para consumirlos al quedar LISTO o liberarlos al cancelarse el pedido.
+model ReservaInsumo {
+  id       String @id @default(uuid())
+  pedidoId String
+  insumoId String
+  cantidad Int
+
+  @@index([pedidoId])
+}
+
 enum CategoriaPlatoDb {
   ENTRADA
   PRINCIPAL

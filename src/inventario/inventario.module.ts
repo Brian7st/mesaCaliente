@@ -5,6 +5,7 @@ import { CrearProductoHandler } from './application/commands/crear-producto/crea
 import { ReponerStockHandler } from './application/commands/reponer-stock/reponer-stock.handler';
 import { OnInsumosRequeridosHandler } from './application/event-handlers/on-insumos-requeridos.handler';
 import { ProductoRepositoryPrisma } from './infrastructure/out/persistence/producto.repository.prisma';
+import { ReservaInsumoRepositoryPrisma } from './infrastructure/out/persistence/reserva-insumo.repository.prisma';
 
 const CommandHandlers = [CrearProductoHandler, ReponerStockHandler];
 const EventHandlers = [OnInsumosRequeridosHandler];
@@ -16,6 +17,10 @@ const EventHandlers = [OnInsumosRequeridosHandler];
     ...CommandHandlers,
     ...EventHandlers,
     { provide: 'ProductoRepository', useClass: ProductoRepositoryPrisma },
+    {
+      provide: 'ReservaInsumoRepository',
+      useClass: ReservaInsumoRepositoryPrisma,
+    },
   ],
 })
 export class InventarioModule {}
