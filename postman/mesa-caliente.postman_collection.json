@@ -1,0 +1,301 @@
+{
+  "info": {
+    "name": "Mesa Caliente API - E2E",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Pruebas end-to-end del backend (DDD + Hexagonal + CQRS + Saga + Outbox). Correr con: newman run ... --delay-request 1500 (los eventos son eventuales por el Outbox)."
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "numeroMesa", "value": "0" }
+  ],
+  "item": [
+    {
+      "name": "1. Setup",
+      "item": [
+        {
+          "name": "Crear producto (stock 100)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));",
+            "pm.collectionVariables.set('prodId', pm.response.json().id);",
+            "pm.test('stock 100', () => pm.expect(pm.response.json().stock).to.eql(100));"
+          ] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Milanesa E2E\",\n  \"stockInicial\": 100\n}" },
+            "url": "{{baseUrl}}/inventario/productos" }
+        },
+        {
+          "name": "Crear mesa",
+          "event": [
+            { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+              "pm.collectionVariables.set('numeroMesa', String(Math.floor(1000 + Math.random()*8000)));"
+            ] } },
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('201', () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set('mesaId', pm.response.json().id);",
+              "pm.test('LIBRE', () => pm.expect(pm.response.json().estado).to.eql('LIBRE'));"
+            ] } }
+          ],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"numero\": {{numeroMesa}}\n}" },
+            "url": "{{baseUrl}}/mesas" }
+        }
+      ]
+    },
+    {
+      "name": "2. Flujo local completo",
+      "item": [
+        {
+          "name": "Crear pedido LOCAL",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));",
+            "pm.collectionVariables.set('pedidoId', pm.response.json().id);",
+            "pm.test('BORRADOR', () => pm.expect(pm.response.json().estado).to.eql('BORRADOR'));"
+          ] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"mesaId\": \"{{mesaId}}\",\n  \"tipo\": \"LOCAL\"\n}" },
+            "url": "{{baseUrl}}/pedidos" }
+        },
+        {
+          "name": "Agregar item (2 x 20000)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));"
+          ] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"productoId\": \"{{prodId}}\",\n  \"cantidad\": 2,\n  \"precioUnitario\": 20000\n}" },
+            "url": "{{baseUrl}}/pedidos/{{pedidoId}}/items" }
+        },
+        {
+          "name": "Confirmar pedido",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));",
+            "pm.test('CONFIRMADO', () => pm.expect(pm.response.json().estado).to.eql('CONFIRMADO'));"
+          ] } }],
+          "request": { "method": "POST", "header": [], "url": "{{baseUrl}}/pedidos/{{pedidoId}}/confirmar" }
+        },
+        {
+          "name": "Pedido -> EN_PREPARACION",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));",
+            "pm.test('EN_PREPARACION', () => pm.expect(pm.response.json().estado).to.eql('EN_PREPARACION'));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/pedidos/{{pedidoId}}" }
+        },
+        {
+          "name": "Mesa -> OCUPADA",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('OCUPADA', () => pm.expect(pm.response.json().estado).to.eql('OCUPADA'));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/mesas/{{mesaId}}" }
+        },
+        {
+          "name": "Inventario -> stockReservado 2",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('reservado 2', () => pm.expect(pm.response.json().stockReservado).to.eql(2));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/inventario/productos/{{prodId}}" }
+        },
+        {
+          "name": "Caja -> Cuenta ABIERTA de la mesa",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const c = pm.response.json().data.find(x => x.mesaId === pm.collectionVariables.get('mesaId') && x.estado === 'ABIERTA');",
+            "pm.test('cuenta ABIERTA existe', () => pm.expect(c, 'cuenta').to.be.an('object'));",
+            "if (c) { pm.collectionVariables.set('cuentaId', c.id); pm.test('tiene la linea del pedido', () => pm.expect(c.lineas.map(l=>l.pedidoId)).to.include(pm.collectionVariables.get('pedidoId'))); }"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/caja/cuentas?limit=100" }
+        },
+        {
+          "name": "Cocina -> Orden PENDIENTE",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const o = pm.response.json().data.find(x => x.pedidoId === pm.collectionVariables.get('pedidoId'));",
+            "pm.test('orden existe', () => pm.expect(o, 'orden').to.be.an('object'));",
+            "if (o) { pm.collectionVariables.set('ordenId', o.id); pm.test('PENDIENTE', () => pm.expect(o.estado).to.eql('PENDIENTE')); }"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/cocina/ordenes?limit=100" }
+        },
+        {
+          "name": "Cocina iniciar",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 EN_PREPARACION', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().estado).to.eql('EN_PREPARACION'); });"
+          ] } }],
+          "request": { "method": "PATCH", "header": [], "url": "{{baseUrl}}/cocina/ordenes/{{ordenId}}/iniciar" }
+        },
+        {
+          "name": "Cocina preparar item",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200', () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "PATCH", "header": [], "url": "{{baseUrl}}/cocina/ordenes/{{ordenId}}/items/{{prodId}}/preparar" }
+        },
+        {
+          "name": "Cocina finalizar (emite PedidoListo)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 LISTA', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().estado).to.eql('LISTA'); });"
+          ] } }],
+          "request": { "method": "PATCH", "header": [], "url": "{{baseUrl}}/cocina/ordenes/{{ordenId}}/finalizar" }
+        },
+        {
+          "name": "Pedido -> LISTO",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('LISTO', () => pm.expect(pm.response.json().estado).to.eql('LISTO'));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/pedidos/{{pedidoId}}" }
+        },
+        {
+          "name": "Pagar cuenta",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201 PAGADA', () => { pm.response.to.have.status(201); pm.expect(pm.response.json().estado).to.eql('PAGADA'); });"
+          ] } }],
+          "request": { "method": "POST", "header": [], "url": "{{baseUrl}}/caja/cuentas/{{cuentaId}}/pagar" }
+        },
+        {
+          "name": "Pedido -> PAGADO",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('PAGADO', () => pm.expect(pm.response.json().estado).to.eql('PAGADO'));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/pedidos/{{pedidoId}}" }
+        },
+        {
+          "name": "Mesa -> LIBRE",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('LIBRE', () => pm.expect(pm.response.json().estado).to.eql('LIBRE'));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/mesas/{{mesaId}}" }
+        },
+        {
+          "name": "Pagar de nuevo -> 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('400 CuentaYaPagada', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql('CuentaYaPagadaException'); });"
+          ] } }],
+          "request": { "method": "POST", "header": [], "url": "{{baseUrl}}/caja/cuentas/{{cuentaId}}/pagar" }
+        }
+      ]
+    },
+    {
+      "name": "3. Saga sin stock",
+      "item": [
+        {
+          "name": "Crear producto (stock 1)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));",
+            "pm.collectionVariables.set('prodEscaso', pm.response.json().id);"
+          ] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Escaso E2E\",\n  \"stockInicial\": 1\n}" },
+            "url": "{{baseUrl}}/inventario/productos" }
+        },
+        {
+          "name": "Crear pedido LOCAL (sin mesa)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));",
+            "pm.collectionVariables.set('pedidoSaga', pm.response.json().id);"
+          ] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"tipo\": \"LOCAL\"\n}" },
+            "url": "{{baseUrl}}/pedidos" }
+        },
+        {
+          "name": "Agregar item (10 > stock)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));"
+          ] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"productoId\": \"{{prodEscaso}}\",\n  \"cantidad\": 10,\n  \"precioUnitario\": 5000\n}" },
+            "url": "{{baseUrl}}/pedidos/{{pedidoSaga}}/items" }
+        },
+        {
+          "name": "Confirmar",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));"
+          ] } }],
+          "request": { "method": "POST", "header": [], "url": "{{baseUrl}}/pedidos/{{pedidoSaga}}/confirmar" }
+        },
+        {
+          "name": "Pedido -> CANCELADO (compensacion)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('CANCELADO', () => pm.expect(pm.response.json().estado).to.eql('CANCELADO'));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/pedidos/{{pedidoSaga}}" }
+        },
+        {
+          "name": "Orden de cocina -> DESCARTADA",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const o = pm.response.json().data.find(x => x.pedidoId === pm.collectionVariables.get('pedidoSaga'));",
+            "pm.test('orden existe', () => pm.expect(o, 'orden').to.be.an('object'));",
+            "if (o) pm.test('DESCARTADA', () => pm.expect(o.estado).to.eql('DESCARTADA'));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/cocina/ordenes?limit=100" }
+        }
+      ]
+    },
+    {
+      "name": "4. Domicilio",
+      "item": [
+        {
+          "name": "Crear pedido DOMICILIO",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));",
+            "pm.collectionVariables.set('pedidoDom', pm.response.json().id);"
+          ] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"tipo\": \"DOMICILIO\",\n  \"direccion\": { \"calle\": \"Cll 100 # 15-20\", \"ciudad\": \"Medellin\", \"referencia\": \"Torre B\" }\n}" },
+            "url": "{{baseUrl}}/pedidos" }
+        },
+        {
+          "name": "Agregar item al domicilio",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));"
+          ] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"productoId\": \"{{prodId}}\",\n  \"cantidad\": 1,\n  \"precioUnitario\": 18000\n}" },
+            "url": "{{baseUrl}}/pedidos/{{pedidoDom}}/items" }
+        },
+        {
+          "name": "Confirmar domicilio",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('201', () => pm.response.to.have.status(201));"
+          ] } }],
+          "request": { "method": "POST", "header": [], "url": "{{baseUrl}}/pedidos/{{pedidoDom}}/confirmar" }
+        },
+        {
+          "name": "Domicilio -> ASIGNADO",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const d = pm.response.json().data.find(x => x.pedidoId === pm.collectionVariables.get('pedidoDom'));",
+            "pm.test('domicilio existe', () => pm.expect(d, 'domicilio').to.be.an('object'));",
+            "if (d) { pm.collectionVariables.set('domId', d.id); pm.test('ASIGNADO', () => pm.expect(d.estado).to.eql('ASIGNADO')); pm.test('ciudad Medellin', () => pm.expect(d.direccion.ciudad).to.eql('Medellin')); }"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/domicilios?limit=100" }
+        },
+        {
+          "name": "Iniciar entrega -> EN_CAMINO",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 EN_CAMINO', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().estado).to.eql('EN_CAMINO'); });"
+          ] } }],
+          "request": { "method": "PATCH", "header": [], "url": "{{baseUrl}}/domicilios/{{domId}}/iniciar-entrega" }
+        },
+        {
+          "name": "Confirmar entrega -> ENTREGADO",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('200 ENTREGADO', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().estado).to.eql('ENTREGADO'); });"
+          ] } }],
+          "request": { "method": "PATCH", "header": [], "url": "{{baseUrl}}/domicilios/{{domId}}/confirmar-entrega" }
+        }
+      ]
+    },
+    {
+      "name": "5. Paginacion",
+      "item": [
+        {
+          "name": "GET /mesas?page=1&limit=2",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const b = pm.response.json();",
+            "pm.test('shape {data, meta}', () => { pm.expect(b).to.have.property('data'); pm.expect(b).to.have.property('meta'); });",
+            "pm.test('data <= 2', () => pm.expect(b.data.length).to.be.at.most(2));",
+            "pm.test('meta.limit 2', () => pm.expect(b.meta.limit).to.eql(2));",
+            "pm.test('meta con total/totalPages', () => { pm.expect(b.meta).to.have.property('total'); pm.expect(b.meta).to.have.property('totalPages'); });"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/mesas?page=1&limit=2" }
+        }
+      ]
+    }
+  ]
+}
