@@ -11,6 +11,7 @@ import { Cuenta } from '../../../domain/model/cuenta.aggregate';
 import { LineaCuenta } from '../../../domain/model/linea-cuenta.entity';
 import { Dinero } from '../../../domain/model/dinero.vo';
 import { EstadoCuenta } from '../../../domain/model/estado-cuenta.vo';
+import { Pagina, ParametrosPaginacion } from '../../../../shared/application/pagina';
 
 type CuentaConLineas = CuentaRow & { lineas: LineaCuentaRow[] };
 
@@ -42,11 +43,21 @@ export class CuentaRepositoryPrisma implements CuentaRepository {
     return row ? this.aDominio(row) : null;
   }
 
-  async listar(): Promise<Cuenta[]> {
-    const rows = await this.prisma.cuenta.findMany({
-      include: { lineas: true },
-    });
-    return rows.map((row) => this.aDominio(row));
+  async listar(paginacion: ParametrosPaginacion): Promise<Pagina<Cuenta>> {
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.cuenta.findMany({
+        include: { lineas: true },
+        skip: (paginacion.page - 1) * paginacion.limit,
+        take: paginacion.limit,
+      }),
+      this.prisma.cuenta.count(),
+    ]);
+    return {
+      items: rows.map((row) => this.aDominio(row)),
+      total,
+      page: paginacion.page,
+      limit: paginacion.limit,
+    };
   }
 
   async guardar(cuenta: Cuenta): Promise<void> {

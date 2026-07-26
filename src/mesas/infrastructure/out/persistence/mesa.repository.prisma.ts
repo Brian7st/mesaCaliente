@@ -6,6 +6,7 @@ import { Mesa } from '../../../domain/model/mesa.aggregate';
 import { NumeroMesa } from '../../../domain/model/numero-mesa.vo';
 import { EstadoMesa } from '../../../domain/model/estado-mesa.vo';
 import { NumeroMesaDuplicadoException } from '../../../domain/exceptions/mesa.exceptions';
+import { Pagina, ParametrosPaginacion } from '../../../../shared/application/pagina';
 
 @Injectable()
 export class MesaRepositoryPrisma implements MesaRepository {
@@ -16,9 +17,21 @@ export class MesaRepositoryPrisma implements MesaRepository {
     return row ? this.aDominio(row) : null;
   }
 
-  async listar(): Promise<Mesa[]> {
-    const rows = await this.prisma.mesa.findMany({ orderBy: { numero: 'asc' } });
-    return rows.map((row) => this.aDominio(row));
+  async listar(paginacion: ParametrosPaginacion): Promise<Pagina<Mesa>> {
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.mesa.findMany({
+        orderBy: { numero: 'asc' },
+        skip: (paginacion.page - 1) * paginacion.limit,
+        take: paginacion.limit,
+      }),
+      this.prisma.mesa.count(),
+    ]);
+    return {
+      items: rows.map((row) => this.aDominio(row)),
+      total,
+      page: paginacion.page,
+      limit: paginacion.limit,
+    };
   }
 
   async guardar(mesa: Mesa): Promise<void> {

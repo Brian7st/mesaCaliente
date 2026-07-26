@@ -16,7 +16,12 @@ import { AgregarItemDto } from './dto/agregar-item.dto';
 import {
   ItemPedidoResponseDto,
   PedidoResponseDto,
+  PedidosPaginadosDto,
 } from './dto/pedido-response.dto';
+import {
+  construirMeta,
+  resolverPaginacion,
+} from '../../../../shared/infrastructure/http/paginacion';
 import { CrearPedidoCommand } from '../../../application/commands/crear-pedido/crear-pedido.command';
 import { AgregarItemCommand } from '../../../application/commands/agregar-item/agregar-item.command';
 import { ConfirmarPedidoCommand } from '../../../application/commands/confirmar-pedido/confirmar-pedido.command';
@@ -95,7 +100,7 @@ export class PedidoController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Lista los pedidos, con filtro opcional por estado' })
+  @ApiOperation({ summary: 'Lista paginada de pedidos, con filtro opcional por estado' })
   @ApiQuery({
     name: 'estado',
     required: false,
@@ -108,12 +113,20 @@ export class PedidoController {
       'CANCELADO',
     ],
   })
-  @ApiResponse({ status: 200, type: [PedidoResponseDto] })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiResponse({ status: 200, type: PedidosPaginadosDto })
   async listar(
     @Query('estado') estado?: EstadoPedido,
-  ): Promise<PedidoResponseDto[]> {
-    const pedidos = await this.repo.listar(estado);
-    return pedidos.map((pedido) => this.mapearADto(pedido));
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ): Promise<PedidosPaginadosDto> {
+    const paginacion = resolverPaginacion(page, limit);
+    const pagina = await this.repo.listar(paginacion, estado);
+    return {
+      data: pagina.items.map((pedido) => this.mapearADto(pedido)),
+      meta: construirMeta(pagina.total, pagina.page, pagina.limit),
+    };
   }
 
   private mapearADto(pedido: Pedido): PedidoResponseDto {

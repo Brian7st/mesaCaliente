@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { MetaPaginacionDto } from '../../../../../shared/infrastructure/http/meta-paginacion.dto';
 
 export class LineaCuentaResponseDto {
   @ApiProperty({ example: 'ped-abc-123' })
@@ -27,4 +28,12 @@ export class CuentaResponseDto {
 
   @ApiProperty({ description: 'Total de la cuenta en COP', example: 45000 })
   total: number;
+}
+
+export class CuentasPaginadasDto {
+  @ApiProperty({ type: [CuentaResponseDto] })
+  data: CuentaResponseDto[];
+
+  @ApiProperty({ type: MetaPaginacionDto })
+  meta: MetaPaginacionDto;
 }

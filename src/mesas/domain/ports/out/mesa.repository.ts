@@ -1,4 +1,5 @@
 import { Mesa } from '../../model/mesa.aggregate';
+import { Pagina, ParametrosPaginacion } from '../../../../shared/application/pagina';
 
 /**
  * Puerto de salida del Bounded Context Mesas.
@@ -6,5 +7,5 @@ import { Mesa } from '../../model/mesa.aggregate';
 export interface MesaRepository {
   buscarPorId(id: string): Promise<Mesa | null>;
   guardar(mesa: Mesa): Promise<void>;
-  listar(): Promise<Mesa[]>;
+  listar(paginacion: ParametrosPaginacion): Promise<Pagina<Mesa>>;
 }

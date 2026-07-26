@@ -7,13 +7,21 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { CommandBus } from '@nestjs/cqrs';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { randomUUID } from 'crypto';
 import { CrearProductoDto } from './dto/crear-producto.dto';
 import { ReponerStockDto } from './dto/reponer-stock.dto';
-import { ProductoResponseDto } from './dto/producto-response.dto';
+import {
+  ProductoResponseDto,
+  ProductosPaginadosDto,
+} from './dto/producto-response.dto';
+import {
+  construirMeta,
+  resolverPaginacion,
+} from '../../../../shared/infrastructure/http/paginacion';
 import { CrearProductoCommand } from '../../../application/commands/crear-producto/crear-producto.command';
 import { ReponerStockCommand } from '../../../application/commands/reponer-stock/reponer-stock.command';
 import { ProductoRepository } from '../../../domain/ports/out/producto.repository';
@@ -42,11 +50,20 @@ export class ProductoController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Lista los productos con su stock' })
-  @ApiResponse({ status: 200, type: [ProductoResponseDto] })
-  async listar(): Promise<ProductoResponseDto[]> {
-    const productos = await this.repo.listar();
-    return productos.map((producto) => this.mapearADto(producto));
+  @ApiOperation({ summary: 'Lista paginada de productos con su stock' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiResponse({ status: 200, type: ProductosPaginadosDto })
+  async listar(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ): Promise<ProductosPaginadosDto> {
+    const paginacion = resolverPaginacion(page, limit);
+    const pagina = await this.repo.listar(paginacion);
+    return {
+      data: pagina.items.map((producto) => this.mapearADto(producto)),
+      meta: construirMeta(pagina.total, pagina.page, pagina.limit),
+    };
   }
 
   @Get(':id')
