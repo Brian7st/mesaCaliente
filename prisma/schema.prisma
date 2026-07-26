@@ -84,6 +84,31 @@ model Producto {
   stockReservado Int    @default(0)
 }
 
+enum CategoriaPlatoDb {
+  ENTRADA
+  PRINCIPAL
+  POSTRE
+  BEBIDA
+  ACOMPANAMIENTO
+}
+
+model Plato {
+  id         String           @id @default(uuid())
+  nombre     String
+  precio     Int
+  categoria  CategoriaPlatoDb
+  disponible Boolean          @default(true)
+  receta     LineaReceta[]
+}
+
+model LineaReceta {
+  id       String @id @default(uuid())
+  platoId  String
+  plato    Plato  @relation(fields: [platoId], references: [id], onDelete: Cascade)
+  insumoId String
+  cantidad Int
+}
+
 enum EstadoCuentaDb {
   ABIERTA
   PAGADA
