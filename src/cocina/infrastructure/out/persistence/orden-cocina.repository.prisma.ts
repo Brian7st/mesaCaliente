@@ -9,6 +9,7 @@ import { OrdenCocinaRepository } from '../../../domain/ports/out/orden-cocina.re
 import { OrdenCocina } from '../../../domain/model/orden-cocina.aggregate';
 import { ItemOrden } from '../../../domain/model/item-orden.entity';
 import { EstadoOrdenCocina } from '../../../domain/model/estado-orden-cocina.vo';
+import { aFilaOutbox } from '../../../../shared/infrastructure/outbox/outbox.mapper';
 
 type OrdenConItems = OrdenRow & { items: ItemOrdenRow[] };
 
@@ -44,6 +45,7 @@ export class OrdenCocinaRepositoryPrisma implements OrdenCocinaRepository {
 
   async guardar(orden: OrdenCocina): Promise<void> {
     const estado = orden.estado as unknown as EstadoOrdenCocinaDb;
+    const eventos = orden.obtenerEventos();
     await this.prisma.$transaction([
       this.prisma.ordenCocina.upsert({
         where: { id: orden.id },
@@ -63,6 +65,9 @@ export class OrdenCocinaRepositoryPrisma implements OrdenCocinaRepository {
           preparado: item.preparado,
         })),
       }),
+      ...(eventos.length > 0
+        ? [this.prisma.outboxEvent.createMany({ data: eventos.map(aFilaOutbox) })]
+        : []),
     ]);
   }
 

@@ -1,4 +1,4 @@
-import { CommandHandler, ICommandHandler, EventBus } from '@nestjs/cqrs';
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { Inject, NotFoundException } from '@nestjs/common';
 import { ConfirmarPedidoCommand } from './confirmar-pedido.command';
 import { PedidoRepository } from '../../../domain/ports/out/pedido.repository';
@@ -9,7 +9,6 @@ export class ConfirmarPedidoHandler
 {
   constructor(
     @Inject('PedidoRepository') private readonly repo: PedidoRepository,
-    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: ConfirmarPedidoCommand): Promise<void> {
@@ -17,9 +16,9 @@ export class ConfirmarPedidoHandler
     if (!pedido) {
       throw new NotFoundException('Pedido no encontrado');
     }
-
+    // El evento PedidoConfirmado lo persiste el repositorio en el Outbox
+    // (dentro de la misma transaccion) y lo publica el dispatcher.
     pedido.confirmar();
     await this.repo.guardar(pedido);
-    pedido.obtenerEventos().forEach((evento) => this.eventBus.publish(evento));
   }
 }
