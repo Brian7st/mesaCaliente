@@ -101,8 +101,9 @@ El proyecto sigue **DDD** (táctico y estratégico) combinado con **Arquitectura
 6. Cocina escucha PedidoConfirmado → crea OrdenCocina con los ítems.
 7. Cocina finaliza la preparación → PedidoListo (único emisor de este evento).
 8. Pedidos escucha PedidoListo → actualiza su estado (no lo reemite).
-9. Caja escucha PedidoListo (de Cocina) → genera Factura.
-10. Se registra el pago → PagoRegistrado.
+9. Caja escucha PedidoConfirmado → agrega el pedido a la Cuenta de la mesa
+   (o abre una nueva); si el pedido se cancela, lo quita (PedidoCancelado).
+10. Se paga la Cuenta → PagoRegistrado.
 11. Si el Pedido es DOMICILIO → Domicilios escucha PedidoConfirmado y crea
     un Domicilio (ASIGNADO → EN_CAMINO → ENTREGADO).
 12. Si el Pedido tenía Mesa y ya se pagó → la Mesa se libera.
@@ -113,10 +114,11 @@ El proyecto sigue **DDD** (táctico y estratégico) combinado con **Arquitectura
 ```
 Pedidos --PedidoConfirmado--> Inventario --StockReservado/ReservaStockFallida--> Pedidos
 Pedidos --PedidoConfirmado--> Cocina --PedidoListo--> Pedidos
-Cocina  --PedidoListo------->  Caja --PagoRegistrado--> Pedidos
+Pedidos --PedidoConfirmado--> Caja (agrega a la Cuenta de la mesa)
+Pedidos --PedidoCancelado---> Caja (quita el pedido de la Cuenta)
+Caja    --PagoRegistrado----> Pedidos (marcar PAGADO) y Mesas (liberar)
 Pedidos --PedidoConfirmado--> Domicilios
 Pedidos --PedidoConfirmado--> Mesas (ocupar, si aplica)
-Caja    --PagoRegistrado---> Mesas (liberar, si aplica)
 ```
 
 ### 3.7 Composition Root
@@ -323,9 +325,13 @@ Para el procedimiento exacto de creación de un endpoint, usa el skill `document
 - VO `Cantidad`, `valor >= 0`.
 - Reacciona a `PedidoConfirmado`: reserva stock de todos los ítems o revierte lo parcial y emite `ReservaStockFallida`.
 
-### 7.5 Factura (Aggregate Root — `src/caja/`)
-- Atributos: `id`, `pedidoId`, `total: Dinero`, `estado: 'PENDIENTE' | 'PAGADA'`.
-- Se crea reaccionando a `PedidoListo`. `registrarPago()` emite `PagoRegistrado`.
+### 7.5 Cuenta (Aggregate Root — `src/caja/`)
+- Atributos: `id`, `mesaId?` (null para domicilios), `estado: 'ABIERTA' | 'PAGADA'`, `lineas: LineaCuenta[]`.
+- Entity interna `LineaCuenta { pedidoId, total: Dinero }`. El `total` de la cuenta es la suma de sus líneas.
+- Agrupa los pedidos de una **sesión de mesa** (correlación = ocupación de la mesa) en una sola cuenta; los pedidos DOMICILIO generan una cuenta propia (una por pedido).
+- Reacciona a `PedidoConfirmado` (agrega la línea a la cuenta ABIERTA de la mesa, o abre una nueva) y a `PedidoCancelado` (quita la línea — compensación del Saga).
+- `pagar()` emite `PagoRegistrado { cuentaId, mesaId, pedidoIds, total }`. Falla si ya está `PAGADA` (`CuentaYaPagadaException`).
+- **Decisión de negocio** (elegida sobre el modelo 1 Factura por Pedido del plan original): una cuenta por sesión de mesa. Ver `PLAN-FASES-DESARROLLO.md` Fase 6.
 
 ### 7.6 Domicilio (Aggregate Root — `src/domicilios/`)
 - Atributos: `id`, `pedidoId`, `direccion: Direccion`, `estado: 'ASIGNADO' | 'EN_CAMINO' | 'ENTREGADO'`.

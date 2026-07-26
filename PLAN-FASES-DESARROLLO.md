@@ -188,28 +188,36 @@
 
 ### Modelo de datos completo
 
-**Aggregate Root: `Factura`** — `{ id, pedidoId, total: Dinero (VO), estado: 'PENDIENTE' | 'PAGADA' }`.
+> **Decisión de modelo (adoptada):** en vez de 1 Factura por Pedido, Caja usa un Aggregate **`Cuenta`** que agrupa los pedidos de una **sesión de mesa** en una sola cuenta. Correlación = ocupación de la mesa (todos los pedidos con ese `mesaId` mientras está OCUPADA). Los pedidos DOMICILIO generan una cuenta propia (una por pedido). Esto cambia el disparador de Caja: reacciona a `PedidoConfirmado` (que ya trae `mesaId`, `tipo` y `total`), no a `PedidoListo` — así no hay que enriquecer `PedidoListo` ni tocar Cocina.
+
+**Aggregate Root: `Cuenta`** — `{ id, mesaId?: string, estado: 'ABIERTA' | 'PAGADA', lineas: LineaCuenta[] }`.
+
+**Entity interna `LineaCuenta`** — `{ pedidoId, total: Dinero (VO) }`. El `total` de la cuenta es la suma de sus líneas. `Dinero` es un VO propio de Caja (cada BC tiene su modelo; el dato llega en el payload de `PedidoConfirmado`).
 
 **Reglas:**
-- Se crea reaccionando a `PedidoListo`, en `PENDIENTE`. El `total` se toma del propio evento si `PedidoListo` lo incluye; si no, agrega el campo `total: Dinero` al payload de `PedidoListo` en `cocina/domain/events/pedido-listo.event.ts` (ajuste retroactivo permitido y esperado en esta fase — actualízalo también en el emisor, Cocina).
-- `registrarPago()`: `PENDIENTE → PAGADA`. Falla si ya `PAGADA` → `FacturaYaPagadaException`. Agrega evento `PagoRegistrado { pedidoId, facturaId, total, fecha }`.
+- `agregarPedido(pedidoId, total)`: solo si `ABIERTA` (si no, `CuentaCerradaException`); idempotente (no duplica un pedido ya presente).
+- `quitarPedido(pedidoId)`: quita la línea (compensación cuando el pedido se cancela).
+- `pagar()`: `ABIERTA → PAGADA`. Falla si ya `PAGADA` → `CuentaYaPagadaException`. Agrega evento `PagoRegistrado { cuentaId, mesaId, pedidoIds, total, fecha }`.
 
-**Event Handler:** `OnPedidoListoHandler` en `caja/` (escucha `PedidoListo` de Cocina, crea la `Factura`).
+**Event Handlers en `caja/`:**
+- `OnPedidoConfirmadoHandler` (escucha `PedidoConfirmado`): busca la `Cuenta` ABIERTA de la mesa (o abre una nueva) y agrega la línea. Para DOMICILIO (`mesaId` null) abre una cuenta propia.
+- `OnPedidoCanceladoHandler` (escucha `PedidoCancelado`): quita la línea de ese pedido.
 
-**Endpoints (`FacturaController`, tag Swagger `Caja`):**
-- `GET /caja/facturas`
-- `GET /caja/facturas/:id`
-- `POST /caja/facturas/:id/pagar`
+**Endpoints (`CuentaController`, tag Swagger `Caja`):**
+- `GET /caja/cuentas`
+- `GET /caja/cuentas/:id`
+- `POST /caja/cuentas/:id/pagar`
 
 ### Tareas adicionales en Pedidos y Mesas
-1. En `pedidos/`, crear `OnPagoRegistradoHandler`: escucha `PagoRegistrado`, llama `pedido.marcarPagado()`, guarda.
-2. En `mesas/`, completar el `OnPagoRegistradoHandler` dejado pendiente en Fase 2: si el pedido pagado tenía `mesaId`, llama `mesa.liberar()`.
+1. En `pedidos/`, crear `OnPedidoListoHandler`: escucha `PedidoListo` (de Cocina), llama `pedido.marcarListo()`.
+2. En `pedidos/`, crear `OnPagoRegistradoHandler`: escucha `PagoRegistrado`, marca `PAGADO` cada pedido de la cuenta (best-effort: los que estén en `LISTO`).
+3. En `mesas/`, crear `OnPagoRegistradoHandler`: si la cuenta pagada tenía `mesaId`, llama `mesa.liberar()`.
 
 ### Criterios de aceptación
-- [ ] Al finalizar una `OrdenCocina`, aparece automáticamente una `Factura` en `GET /caja/facturas` con `estado: PENDIENTE`.
-- [ ] Al pagarla, el pedido asociado pasa a `PAGADO` (verificable en `GET /pedidos/:id`).
-- [ ] Si el pedido tenía mesa, la mesa vuelve a `LIBRE` (verificable en `GET /mesas`).
-- [ ] Pagar dos veces la misma factura devuelve HTTP 400 (`FacturaYaPagadaException`).
+- [ ] Al confirmar pedidos de una misma mesa, se acumulan en **una** `Cuenta` ABIERTA (`GET /caja/cuentas`).
+- [ ] Un pedido cancelado (sin stock) NO queda en la cuenta.
+- [ ] Al pagar la cuenta, la mesa vuelve a `LIBRE` (`GET /mesas`) y los pedidos LISTO pasan a `PAGADO`.
+- [ ] Pagar dos veces la misma cuenta devuelve HTTP 400 (`CuentaYaPagadaException`).
 
 ---
 
