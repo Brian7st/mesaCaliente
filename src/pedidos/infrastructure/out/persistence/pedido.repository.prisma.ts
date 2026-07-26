@@ -10,6 +10,7 @@ import { Pedido, TipoPedido } from '../../../domain/model/pedido.aggregate';
 import { ItemPedido } from '../../../domain/model/item-pedido.entity';
 import { Dinero } from '../../../domain/model/dinero.vo';
 import { EstadoPedido } from '../../../domain/model/estado-pedido.vo';
+import { aFilaOutbox } from '../../../../shared/infrastructure/outbox/outbox.mapper';
 
 type PedidoConItems = PedidoRow & { items: ItemPedidoRow[] };
 
@@ -36,8 +37,9 @@ export class PedidoRepositoryPrisma implements PedidoRepository {
 
   async guardar(pedido: Pedido): Promise<void> {
     const estado = pedido.estado as unknown as EstadoPedidoDb;
-    // Guardado del Aggregate completo (raiz + items) en una sola transaccion:
-    // upsert de la raiz y reemplazo de sus items para reflejar el estado actual.
+    const eventos = pedido.obtenerEventos();
+    // Guardado del Aggregate completo (raiz + items) y sus Domain Events en el
+    // Outbox, todo en una sola transaccion (patron Outbox).
     await this.prisma.$transaction([
       this.prisma.pedido.upsert({
         where: { id: pedido.id },
@@ -64,6 +66,9 @@ export class PedidoRepositoryPrisma implements PedidoRepository {
           precioUnitario: item.precioUnitario.monto,
         })),
       }),
+      ...(eventos.length > 0
+        ? [this.prisma.outboxEvent.createMany({ data: eventos.map(aFilaOutbox) })]
+        : []),
     ]);
   }
 

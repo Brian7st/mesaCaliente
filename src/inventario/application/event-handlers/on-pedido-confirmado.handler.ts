@@ -1,6 +1,7 @@
-import { EventsHandler, IEventHandler, EventBus } from '@nestjs/cqrs';
+import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
 import { Inject } from '@nestjs/common';
 import { DomainException } from '../../../shared/domain/domain-exception.base';
+import { OutboxService } from '../../../shared/infrastructure/outbox/outbox.service';
 import { PedidoConfirmado } from '../../../pedidos/domain/events/pedido-confirmado.event';
 import { ProductoRepository } from '../../domain/ports/out/producto.repository';
 import { Producto } from '../../domain/model/producto.aggregate';
@@ -24,7 +25,7 @@ export class OnPedidoConfirmadoHandler
   constructor(
     @Inject('ProductoRepository')
     private readonly repo: ProductoRepository,
-    private readonly eventBus: EventBus,
+    private readonly outbox: OutboxService,
   ) {}
 
   async handle(event: PedidoConfirmado): Promise<void> {
@@ -47,15 +48,17 @@ export class OnPedidoConfirmadoHandler
       }
     } catch (error) {
       if (error instanceof DomainException) {
-        this.eventBus.publish(
+        await this.outbox.registrar([
           new ReservaStockFallida(event.pedidoId, error.message, new Date()),
-        );
+        ]);
         return;
       }
       throw error;
     }
 
     await this.repo.guardarVarios(Array.from(productos.values()));
-    this.eventBus.publish(new StockReservado(event.pedidoId, new Date()));
+    await this.outbox.registrar([
+      new StockReservado(event.pedidoId, new Date()),
+    ]);
   }
 }

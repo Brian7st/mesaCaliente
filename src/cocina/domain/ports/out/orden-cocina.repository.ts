@@ -6,6 +6,7 @@ import { EstadoOrdenCocina } from '../../model/estado-orden-cocina.vo';
  */
 export interface OrdenCocinaRepository {
   buscarPorId(id: string): Promise<OrdenCocina | null>;
+  buscarPorPedidoId(pedidoId: string): Promise<OrdenCocina | null>;
   guardar(orden: OrdenCocina): Promise<void>;
   listar(estado?: EstadoOrdenCocina): Promise<OrdenCocina[]>;
 }

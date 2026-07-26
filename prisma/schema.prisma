@@ -55,6 +55,7 @@ enum EstadoOrdenCocinaDb {
   PENDIENTE
   EN_PREPARACION
   LISTA
+  DESCARTADA
 }
 
 model OrdenCocina {
@@ -78,4 +79,15 @@ model Producto {
   nombre         String
   stock          Int
   stockReservado Int    @default(0)
+}
+
+model OutboxEvent {
+  id          String   @id @default(uuid())
+  aggregateId String
+  eventType   String
+  payload     Json
+  createdAt   DateTime @default(now())
+  publicado   Boolean  @default(false)
+
+  @@index([publicado, createdAt])
 }

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from './shared/infrastructure/prisma/prisma.module';
+import { OutboxModule } from './shared/infrastructure/outbox/outbox.module';
 import { PedidosModule } from './pedidos/pedidos.module';
 import { MesasModule } from './mesas/mesas.module';
 import { CocinaModule } from './cocina/cocina.module';
@@ -12,6 +13,7 @@ import { InventarioModule } from './inventario/inventario.module';
 @Module({
   imports: [
     PrismaModule,
+    OutboxModule,
     PedidosModule,
     MesasModule,
     CocinaModule,
