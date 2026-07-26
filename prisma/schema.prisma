@@ -104,6 +104,21 @@ model LineaCuenta {
   total    Int
 }
 
+enum EstadoDomicilioDb {
+  ASIGNADO
+  EN_CAMINO
+  ENTREGADO
+}
+
+model Domicilio {
+  id         String            @id @default(uuid())
+  pedidoId   String
+  calle      String
+  ciudad     String
+  referencia String?
+  estado     EstadoDomicilioDb
+}
+
 model OutboxEvent {
   id          String   @id @default(uuid())
   aggregateId String

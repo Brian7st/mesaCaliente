@@ -4,6 +4,7 @@ import { PedidoListo } from '../../../cocina/domain/events/pedido-listo.event';
 import { StockReservado } from '../../../inventario/domain/events/stock-reservado.event';
 import { ReservaStockFallida } from '../../../inventario/domain/events/reserva-stock-fallida.event';
 import { PagoRegistrado } from '../../../caja/domain/events/pago-registrado.event';
+import { DomicilioEntregado } from '../../../domicilios/domain/events/domicilio-entregado.event';
 
 /**
  * Registro de tipos de evento -> clase, para reconstruir la instancia correcta
@@ -17,6 +18,7 @@ const CLASES: Array<new (...args: never[]) => object> = [
   StockReservado,
   ReservaStockFallida,
   PagoRegistrado,
+  DomicilioEntregado,
 ];
 
 const REGISTRO = new Map<string, (new (...args: never[]) => object)>(
