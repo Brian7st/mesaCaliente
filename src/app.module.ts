@@ -7,6 +7,7 @@ import { CocinaModule } from './cocina/cocina.module';
 import { InventarioModule } from './inventario/inventario.module';
 import { CajaModule } from './caja/caja.module';
 import { DomiciliosModule } from './domicilios/domicilios.module';
+import { CartaModule } from './carta/carta.module';
 
 /**
  * Composition Root global. Importa el modulo global de Prisma y los modulos
@@ -22,6 +23,7 @@ import { DomiciliosModule } from './domicilios/domicilios.module';
     InventarioModule,
     CajaModule,
     DomiciliosModule,
+    CartaModule,
   ],
 })
 export class AppModule {}
