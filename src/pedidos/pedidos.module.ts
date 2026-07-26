@@ -6,6 +6,8 @@ import { AgregarItemHandler } from './application/commands/agregar-item/agregar-
 import { ConfirmarPedidoHandler } from './application/commands/confirmar-pedido/confirmar-pedido.handler';
 import { OnStockReservadoHandler } from './application/event-handlers/on-stock-reservado.handler';
 import { OnReservaStockFallidaHandler } from './application/event-handlers/on-reserva-stock-fallida.handler';
+import { OnPedidoListoHandler } from './application/event-handlers/on-pedido-listo.handler';
+import { OnPagoRegistradoHandler } from './application/event-handlers/on-pago-registrado.handler';
 import { PedidoRepositoryPrisma } from './infrastructure/out/persistence/pedido.repository.prisma';
 
 const CommandHandlers = [
@@ -14,7 +16,12 @@ const CommandHandlers = [
   ConfirmarPedidoHandler,
 ];
 
-const EventHandlers = [OnStockReservadoHandler, OnReservaStockFallidaHandler];
+const EventHandlers = [
+  OnStockReservadoHandler,
+  OnReservaStockFallidaHandler,
+  OnPedidoListoHandler,
+  OnPagoRegistradoHandler,
+];
 
 @Module({
   imports: [CqrsModule],
