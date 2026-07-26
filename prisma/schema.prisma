@@ -81,6 +81,26 @@ model Producto {
   stockReservado Int    @default(0)
 }
 
+enum EstadoCuentaDb {
+  ABIERTA
+  PAGADA
+}
+
+model Cuenta {
+  id     String         @id @default(uuid())
+  mesaId String?
+  estado EstadoCuentaDb
+  lineas LineaCuenta[]
+}
+
+model LineaCuenta {
+  id       String @id @default(uuid())
+  cuentaId String
+  cuenta   Cuenta @relation(fields: [cuentaId], references: [id], onDelete: Cascade)
+  pedidoId String
+  total    Int
+}
+
 model OutboxEvent {
   id          String   @id @default(uuid())
   aggregateId String
