@@ -72,3 +72,10 @@ model ItemOrden {
   cantidad   Int
   preparado  Boolean     @default(false)
 }
+
+model Producto {
+  id             String @id @default(uuid())
+  nombre         String
+  stock          Int
+  stockReservado Int    @default(0)
+}
