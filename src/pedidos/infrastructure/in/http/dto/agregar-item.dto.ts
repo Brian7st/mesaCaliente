@@ -1,10 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsPositive, IsString } from 'class-validator';
+import { IsInt, IsOptional, IsPositive, IsString } from 'class-validator';
 
 export class AgregarItemDto {
-  @ApiProperty({ description: 'ID del producto', example: 'prod-abc-123' })
+  @ApiProperty({ description: 'ID del plato de la carta', example: 'plato-abc-123' })
   @IsString()
-  productoId: string;
+  platoId: string;
 
   @ApiProperty({ description: 'Cantidad de unidades', example: 2 })
   @IsInt()
@@ -12,10 +12,11 @@ export class AgregarItemDto {
   cantidad: number;
 
   @ApiProperty({
-    description: 'Precio unitario en COP (pesos enteros)',
-    example: 15000,
+    description: 'Observacion para cocina (ej. sin cebolla)',
+    example: 'Sin cebolla',
+    required: false,
   })
-  @IsInt()
-  @IsPositive()
-  precioUnitario: number;
+  @IsOptional()
+  @IsString()
+  observacion?: string;
 }

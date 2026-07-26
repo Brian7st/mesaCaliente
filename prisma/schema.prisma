@@ -23,24 +23,26 @@ enum EstadoPedidoDb {
 }
 
 model Pedido {
-  id         String         @id @default(uuid())
-  mesaId     String?
-  tipo       String
-  estado     EstadoPedidoDb
-  createdAt  DateTime       @default(now())
-  calle      String?
-  ciudad     String?
-  referencia String?
-  items      ItemPedido[]
+  id          String         @id @default(uuid())
+  mesaId      String?
+  tipo        String
+  estado      EstadoPedidoDb
+  createdAt   DateTime       @default(now())
+  calle       String?
+  ciudad      String?
+  referencia  String?
+  observacion String?
+  items       ItemPedido[]
 }
 
 model ItemPedido {
-  id             String @id @default(uuid())
+  id             String  @id @default(uuid())
   pedidoId       String
-  pedido         Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  productoId     String
+  pedido         Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  platoId        String
   cantidad       Int
   precioUnitario Int
+  observacion    String?
 }
 
 enum EstadoMesaDb {
@@ -62,19 +64,21 @@ enum EstadoOrdenCocinaDb {
 }
 
 model OrdenCocina {
-  id       String              @id @default(uuid())
-  pedidoId String
-  estado   EstadoOrdenCocinaDb
-  items    ItemOrden[]
+  id          String              @id @default(uuid())
+  pedidoId    String
+  estado      EstadoOrdenCocinaDb
+  observacion String?
+  items       ItemOrden[]
 }
 
 model ItemOrden {
-  id         String      @id @default(uuid())
-  ordenId    String
-  orden      OrdenCocina @relation(fields: [ordenId], references: [id], onDelete: Cascade)
-  productoId String
-  cantidad   Int
-  preparado  Boolean     @default(false)
+  id          String      @id @default(uuid())
+  ordenId     String
+  orden       OrdenCocina @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  platoId     String
+  cantidad    Int
+  preparado   Boolean     @default(false)
+  observacion String?
 }
 
 model Producto {

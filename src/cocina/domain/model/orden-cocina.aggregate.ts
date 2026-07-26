@@ -20,6 +20,7 @@ export class OrdenCocina {
     private readonly _pedidoId: string,
     private _estado: EstadoOrdenCocina,
     items: ItemOrden[],
+    private readonly _observacion: string | null,
   ) {
     this._items = items;
   }
@@ -27,13 +28,15 @@ export class OrdenCocina {
   static crear(
     id: string,
     pedidoId: string,
-    items: { productoId: string; cantidad: number }[],
+    items: { platoId: string; cantidad: number; observacion?: string }[],
+    observacion: string | null = null,
   ): OrdenCocina {
     return new OrdenCocina(
       id,
       pedidoId,
       EstadoOrdenCocina.PENDIENTE,
-      items.map((i) => new ItemOrden(i.productoId, i.cantidad, false)),
+      items.map((i) => new ItemOrden(i.platoId, i.cantidad, false, i.observacion)),
+      observacion,
     );
   }
 
@@ -42,12 +45,14 @@ export class OrdenCocina {
     pedidoId: string;
     estado: EstadoOrdenCocina;
     items: ItemOrden[];
+    observacion: string | null;
   }): OrdenCocina {
     return new OrdenCocina(
       params.id,
       params.pedidoId,
       params.estado,
       params.items,
+      params.observacion,
     );
   }
 
@@ -61,10 +66,10 @@ export class OrdenCocina {
     this._estado = EstadoOrdenCocina.EN_PREPARACION;
   }
 
-  marcarItemPreparado(productoId: string): void {
-    const item = this._items.find((i) => i.productoId === productoId);
+  marcarItemPreparado(platoId: string): void {
+    const item = this._items.find((i) => i.platoId === platoId);
     if (!item) {
-      throw new ItemOrdenNoEncontradoException(productoId);
+      throw new ItemOrdenNoEncontradoException(platoId);
     }
     item.preparar();
   }
@@ -115,5 +120,9 @@ export class OrdenCocina {
 
   get items(): ReadonlyArray<ItemOrden> {
     return this._items;
+  }
+
+  get observacion(): string | null {
+    return this._observacion;
   }
 }

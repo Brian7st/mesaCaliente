@@ -2,7 +2,7 @@ import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
 import { Inject } from '@nestjs/common';
 import { DomainException } from '../../../shared/domain/domain-exception.base';
 import { OutboxService } from '../../../shared/infrastructure/outbox/outbox.service';
-import { PedidoConfirmado } from '../../../pedidos/domain/events/pedido-confirmado.event';
+import { InsumosRequeridos } from '../../../carta/domain/events/insumos-requeridos.event';
 import { ProductoRepository } from '../../domain/ports/out/producto.repository';
 import { Producto } from '../../domain/model/producto.aggregate';
 import { Cantidad } from '../../domain/model/cantidad.vo';
@@ -11,16 +11,15 @@ import { StockReservado } from '../../domain/events/stock-reservado.event';
 import { ReservaStockFallida } from '../../domain/events/reserva-stock-fallida.event';
 
 /**
- * Patron Saga (coreografia). Reacciona a PedidoConfirmado e intenta reservar
- * el stock de todos los items:
- *  - Si TODOS se reservan: persiste de forma atomica y emite StockReservado.
- *  - Si ALGUNO falla: no persiste nada (revert natural, la mutacion en memoria
- *    se descarta) y emite ReservaStockFallida en vez de propagar la excepcion.
- * La compensacion del lado de Pedidos (cancelar) se implementa en Fase 5.
+ * Patron Saga (coreografia). Reacciona a InsumosRequeridos (que Carta derivo de
+ * las recetas del pedido) e intenta reservar el stock de todos los insumos:
+ *  - Si TODOS se reservan: persiste atomico y emite StockReservado.
+ *  - Si ALGUNO falla: no persiste nada y emite ReservaStockFallida.
+ * Unica importacion cruzada: la clase del evento.
  */
-@EventsHandler(PedidoConfirmado)
-export class OnPedidoConfirmadoHandler
-  implements IEventHandler<PedidoConfirmado>
+@EventsHandler(InsumosRequeridos)
+export class OnInsumosRequeridosHandler
+  implements IEventHandler<InsumosRequeridos>
 {
   constructor(
     @Inject('ProductoRepository')
@@ -28,23 +27,21 @@ export class OnPedidoConfirmadoHandler
     private readonly outbox: OutboxService,
   ) {}
 
-  async handle(event: PedidoConfirmado): Promise<void> {
-    // Un unico Producto en memoria por productoId, para acumular correctamente
-    // cuando el pedido repite el mismo producto en varios items.
+  async handle(event: InsumosRequeridos): Promise<void> {
     const productos = new Map<string, Producto>();
 
     try {
-      for (const item of event.items) {
-        let producto = productos.get(item.productoId);
+      for (const req of event.insumos) {
+        let producto = productos.get(req.insumoId);
         if (!producto) {
-          const encontrado = await this.repo.buscarPorId(item.productoId);
+          const encontrado = await this.repo.buscarPorId(req.insumoId);
           if (!encontrado) {
-            throw new ProductoNoEncontradoException(item.productoId);
+            throw new ProductoNoEncontradoException(req.insumoId);
           }
           producto = encontrado;
-          productos.set(item.productoId, producto);
+          productos.set(req.insumoId, producto);
         }
-        producto.reservarStock(new Cantidad(item.cantidad));
+        producto.reservarStock(new Cantidad(req.cantidad));
       }
     } catch (error) {
       if (error instanceof DomainException) {

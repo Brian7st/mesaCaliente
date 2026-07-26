@@ -68,6 +68,7 @@ export class OrdenCocinaRepositoryPrisma implements OrdenCocinaRepository {
           id: orden.id,
           pedidoId: orden.pedidoId,
           estado,
+          observacion: orden.observacion,
         },
         update: { estado },
       }),
@@ -75,9 +76,10 @@ export class OrdenCocinaRepositoryPrisma implements OrdenCocinaRepository {
       this.prisma.itemOrden.createMany({
         data: orden.items.map((item) => ({
           ordenId: orden.id,
-          productoId: item.productoId,
+          platoId: item.platoId,
           cantidad: item.cantidad,
           preparado: item.preparado,
+          observacion: item.observacion ?? null,
         })),
       }),
       ...(eventos.length > 0
@@ -93,8 +95,14 @@ export class OrdenCocinaRepositoryPrisma implements OrdenCocinaRepository {
       estado: row.estado as unknown as EstadoOrdenCocina,
       items: row.items.map(
         (item) =>
-          new ItemOrden(item.productoId, item.cantidad, item.preparado),
+          new ItemOrden(
+            item.platoId,
+            item.cantidad,
+            item.preparado,
+            item.observacion ?? undefined,
+          ),
       ),
+      observacion: row.observacion ?? null,
     });
   }
 }

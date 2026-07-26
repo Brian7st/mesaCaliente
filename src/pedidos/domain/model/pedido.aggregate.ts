@@ -37,6 +37,7 @@ export class Pedido {
     items: ItemPedido[],
     private readonly _createdAt: Date,
     private readonly _direccion: DireccionPedido | null,
+    private readonly _observacion: string | null,
   ) {
     this._items = items;
   }
@@ -47,6 +48,7 @@ export class Pedido {
     mesaId: string | null,
     tipo: TipoPedido,
     direccion: DireccionPedido | null = null,
+    observacion: string | null = null,
   ): Pedido {
     return new Pedido(
       id,
@@ -56,6 +58,7 @@ export class Pedido {
       [],
       new Date(),
       direccion,
+      observacion,
     );
   }
 
@@ -68,6 +71,7 @@ export class Pedido {
     items: ItemPedido[];
     createdAt: Date;
     direccion: DireccionPedido | null;
+    observacion: string | null;
   }): Pedido {
     return new Pedido(
       params.id,
@@ -77,6 +81,7 @@ export class Pedido {
       params.items,
       params.createdAt,
       params.direccion,
+      params.observacion,
     );
   }
 
@@ -104,12 +109,14 @@ export class Pedido {
         this._mesaId,
         this._tipo,
         this._items.map((i) => ({
-          productoId: i.productoId,
+          platoId: i.platoId,
           cantidad: i.cantidad,
+          observacion: i.observacion,
         })),
         this.total(),
         new Date(),
         this._direccion,
+        this._observacion,
       ),
     );
   }
@@ -191,5 +198,9 @@ export class Pedido {
 
   get direccion(): DireccionPedido | null {
     return this._direccion;
+  }
+
+  get observacion(): string | null {
+    return this._observacion;
   }
 }

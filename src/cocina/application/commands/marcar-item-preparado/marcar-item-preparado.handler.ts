@@ -17,7 +17,7 @@ export class MarcarItemPreparadoHandler
     if (!orden) {
       throw new NotFoundException('Orden de cocina no encontrada');
     }
-    orden.marcarItemPreparado(command.productoId);
+    orden.marcarItemPreparado(command.platoId);
     await this.repo.guardar(orden);
   }
 }
