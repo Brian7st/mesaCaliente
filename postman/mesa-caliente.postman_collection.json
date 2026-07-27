@@ -60,6 +60,22 @@
   {
    "key": "domId",
    "value": ""
+  },
+  {
+   "key": "sagaInsumo",
+   "value": ""
+  },
+  {
+   "key": "sagaPlato",
+   "value": ""
+  },
+  {
+   "key": "sagaPedOk",
+   "value": ""
+  },
+  {
+   "key": "sagaPedFail",
+   "value": ""
   }
  ],
  "item": [
@@ -1192,6 +1208,410 @@
          "pm.test('tiene SALIDA', () => pm.expect(tipos).to.include('SALIDA'));",
          "pm.test('tiene RESERVA', () => pm.expect(tipos).to.include('RESERVA'));",
          "pm.test('paginado', () => pm.expect(pm.response.json().meta).to.have.property('total'));"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "7. Patron Saga (en vivo)",
+   "description": "Demuestra la Saga por coreografia de punta a punta, sus DOS ramas: (A) reserva OK -> el pedido avanza a EN_PREPARACION; (B) sin stock -> ReservaStockFallida -> Pedidos COMPENSA cancelando (CANCELADO) y Cocina descarta la orden. Correr con --delay-request 1500 (eventos eventuales por el Outbox).",
+   "item": [
+    {
+     "name": "Setup: insumo Queso (stock 6)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": "{{baseUrl}}/inventario/productos",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"nombre\": \"Queso saga\",\n  \"stockInicial\": 6\n}"
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201', () => pm.response.to.have.status(201));",
+         "pm.collectionVariables.set('sagaInsumo', pm.response.json().id);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Setup: plato Pizza (precio 30000)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": "{{baseUrl}}/carta/platos",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"nombre\": \"Pizza saga\",\n  \"precio\": 30000,\n  \"categoria\": \"PRINCIPAL\"\n}"
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201', () => pm.response.to.have.status(201));",
+         "pm.collectionVariables.set('sagaPlato', pm.response.json().id);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Setup: receta (3 quesos por pizza)",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": "{{baseUrl}}/carta/platos/{{sagaPlato}}/receta",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"receta\": [ { \"insumoId\": \"{{sagaInsumo}}\", \"cantidad\": 3 } ]\n}"
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('ok', () => pm.expect(pm.response.code).to.be.oneOf([200,201]));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "A1. Pedido (2 pizzas = 6 quesos)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": "{{baseUrl}}/pedidos",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"tipo\": \"LOCAL\"\n}"
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201', () => pm.response.to.have.status(201));",
+         "pm.collectionVariables.set('sagaPedOk', pm.response.json().id);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "A2. Agregar 2 pizzas",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": "{{baseUrl}}/pedidos/{{sagaPedOk}}/items",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"platoId\": \"{{sagaPlato}}\",\n  \"cantidad\": 2\n}"
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201', () => pm.response.to.have.status(201));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "A3. Confirmar (dispara la Saga)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": "{{baseUrl}}/pedidos/{{sagaPedOk}}/confirmar"
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 CONFIRMADO', () => { pm.response.to.have.status(201); pm.expect(pm.response.json().estado).to.eql('CONFIRMADO'); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "A4. Saga OK -> pedido EN_PREPARACION",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": "{{baseUrl}}/pedidos/{{sagaPedOk}}"
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// Carta exploto la receta -> Inventario reservo -> StockReservado -> Pedidos avanzo",
+         "pm.test('EN_PREPARACION (StockReservado)', () => pm.expect(pm.response.json().estado).to.eql('EN_PREPARACION'));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "A5. Inventario: 6 quesos reservados",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": "{{baseUrl}}/inventario/productos/{{sagaInsumo}}"
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('reservado 6 (3x2)', () => pm.expect(pm.response.json().stockReservado).to.eql(6));",
+         "pm.test('disponible 0', () => pm.expect(pm.response.json().stock - pm.response.json().stockReservado).to.eql(0));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "A6. Kardex: movimiento RESERVA",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": "{{baseUrl}}/inventario/productos/{{sagaInsumo}}/movimientos?limit=100"
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "const tipos=pm.response.json().data.map(m=>m.tipo);",
+         "pm.test('tiene RESERVA', () => pm.expect(tipos).to.include('RESERVA'));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "B1. Pedido (1 pizza, ya no hay stock)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": "{{baseUrl}}/pedidos",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"tipo\": \"LOCAL\"\n}"
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201', () => pm.response.to.have.status(201));",
+         "pm.collectionVariables.set('sagaPedFail', pm.response.json().id);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "B2. Agregar 1 pizza (necesita 3 quesos)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": "{{baseUrl}}/pedidos/{{sagaPedFail}}/items",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"platoId\": \"{{sagaPlato}}\",\n  \"cantidad\": 1\n}"
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201', () => pm.response.to.have.status(201));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "B3. Confirmar (dispara la Saga)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": "{{baseUrl}}/pedidos/{{sagaPedFail}}/confirmar"
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 CONFIRMADO', () => { pm.response.to.have.status(201); pm.expect(pm.response.json().estado).to.eql('CONFIRMADO'); });"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "B4. Compensacion -> pedido CANCELADO",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": "{{baseUrl}}/pedidos/{{sagaPedFail}}"
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "// Inventario no pudo reservar -> ReservaStockFallida -> Pedidos compensa",
+         "pm.test('CANCELADO (compensacion)', () => pm.expect(pm.response.json().estado).to.eql('CANCELADO'));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "B5. Reserva intacta (todo-o-nada, sigue 6)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": "{{baseUrl}}/inventario/productos/{{sagaInsumo}}"
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('reservado sigue 6 (sin reserva parcial)', () => pm.expect(pm.response.json().stockReservado).to.eql(6));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "B6. Cocina descarta la orden",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": "{{baseUrl}}/cocina/ordenes?limit=100"
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "const pid=pm.collectionVariables.get('sagaPedFail');",
+         "const o=pm.response.json().data.find(x=>x.pedidoId===pid);",
+         "pm.test('orden DESCARTADA', () => pm.expect(o.estado).to.eql('DESCARTADA'));"
         ]
        }
       }

@@ -1,4 +1,5 @@
 version: '3.8'
+
 services:
   postgres:
     image: postgres:16
@@ -11,5 +12,26 @@ services:
       - '5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U restaurante -d restaurante_db']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # El host de la base es el nombre del servicio en la red de Compose.
+      DATABASE_URL: 'postgresql://restaurante:restaurante123@postgres:5432/restaurante_db?schema=public'
+      PORT: 3000
+    ports:
+      - '3000:3000'
+
 volumes:
   pgdata:
