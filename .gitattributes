@@ -1,0 +1,4 @@
+# Los scripts de shell deben conservar saltos de linea LF para ejecutarse
+# dentro de contenedores Linux, aunque el repo se clone en Windows.
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf
