@@ -80,17 +80,15 @@ export class OrdenCocinaController {
     return this.mapearADto(orden!);
   }
 
-  @Patch(':id/items/:productoId/preparar')
-  @ApiOperation({ summary: 'Marca un item de la orden como preparado' })
+  @Patch(':id/items/:platoId/preparar')
+  @ApiOperation({ summary: 'Marca un item (plato) de la orden como preparado' })
   @ApiResponse({ status: 200, type: OrdenCocinaResponseDto })
   @ApiResponse({ status: 404, description: 'Orden o item no encontrado' })
   async prepararItem(
     @Param('id') id: string,
-    @Param('productoId') productoId: string,
+    @Param('platoId') platoId: string,
   ): Promise<OrdenCocinaResponseDto> {
-    await this.commandBus.execute(
-      new MarcarItemPreparadoCommand(id, productoId),
-    );
+    await this.commandBus.execute(new MarcarItemPreparadoCommand(id, platoId));
     const orden = await this.repo.buscarPorId(id);
     return this.mapearADto(orden!);
   }
@@ -111,11 +109,13 @@ export class OrdenCocinaController {
     dto.id = orden.id;
     dto.pedidoId = orden.pedidoId;
     dto.estado = orden.estado;
+    dto.observacion = orden.observacion ?? undefined;
     dto.items = orden.items.map((item) => {
       const itemDto = new ItemOrdenResponseDto();
-      itemDto.productoId = item.productoId;
+      itemDto.platoId = item.platoId;
       itemDto.cantidad = item.cantidad;
       itemDto.preparado = item.preparado;
+      itemDto.observacion = item.observacion;
       return itemDto;
     });
     return dto;

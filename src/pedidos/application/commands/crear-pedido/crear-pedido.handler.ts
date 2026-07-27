@@ -16,6 +16,7 @@ export class CrearPedidoHandler implements ICommandHandler<CrearPedidoCommand> {
       command.mesaId,
       command.tipo,
       command.direccion,
+      command.observacion,
     );
     await this.repo.guardar(pedido);
   }

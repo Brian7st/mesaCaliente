@@ -1,8 +1,8 @@
 export class AgregarItemCommand {
   constructor(
     readonly pedidoId: string,
-    readonly productoId: string,
+    readonly platoId: string,
     readonly cantidad: number,
-    readonly precioUnitario: number,
+    readonly observacion?: string,
   ) {}
 }

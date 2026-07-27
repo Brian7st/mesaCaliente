@@ -24,6 +24,7 @@ export class OnPedidoConfirmadoHandler
       randomUUID(),
       event.pedidoId,
       event.items,
+      event.observacion,
     );
     await this.repo.guardar(orden);
   }

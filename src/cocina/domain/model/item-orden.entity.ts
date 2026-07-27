@@ -1,14 +1,15 @@
 /**
- * Entity interna de la OrdenCocina. Representa un item a preparar; su estado
- * `preparado` es lo unico mutable.
+ * Entity interna de la OrdenCocina. Representa un plato a preparar; `preparado`
+ * es lo unico mutable. `observacion` es la nota de cocina del item.
  */
 export class ItemOrden {
   private _preparado: boolean;
 
   constructor(
-    readonly productoId: string,
+    readonly platoId: string,
     readonly cantidad: number,
     preparado = false,
+    readonly observacion?: string,
   ) {
     this._preparado = preparado;
   }

@@ -69,6 +69,7 @@ export class PedidoRepositoryPrisma implements PedidoRepository {
           calle: pedido.direccion?.calle ?? null,
           ciudad: pedido.direccion?.ciudad ?? null,
           referencia: pedido.direccion?.referencia ?? null,
+          observacion: pedido.observacion,
         },
         update: {
           mesaId: pedido.mesaId,
@@ -81,9 +82,10 @@ export class PedidoRepositoryPrisma implements PedidoRepository {
         data: pedido.items.map((item) => ({
           id: item.id,
           pedidoId: pedido.id,
-          productoId: item.productoId,
+          platoId: item.platoId,
           cantidad: item.cantidad,
           precioUnitario: item.precioUnitario.monto,
+          observacion: item.observacion ?? null,
         })),
       }),
       ...(eventos.length > 0
@@ -102,9 +104,10 @@ export class PedidoRepositoryPrisma implements PedidoRepository {
         (item) =>
           new ItemPedido(
             item.id,
-            item.productoId,
+            item.platoId,
             item.cantidad,
             new Dinero(item.precioUnitario),
+            item.observacion ?? undefined,
           ),
       ),
       createdAt: row.createdAt,
@@ -115,6 +118,7 @@ export class PedidoRepositoryPrisma implements PedidoRepository {
             referencia: row.referencia ?? undefined,
           }
         : null,
+      observacion: row.observacion ?? null,
     });
   }
 }

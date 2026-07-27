@@ -278,6 +278,43 @@
 
 ---
 
+## Fases de enriquecimiento de dominio (A–D) — "restaurante real"
+
+> Iteración posterior a la Fase 9 para que el modelo refleje un restaurante real: separar **Carta** (platos con precio y receta) de **Inventario** (insumos), quitar el precio del request del cliente, y modelar el ciclo real del stock (reserva → consumo/liberación) con kardex. Respeta 100% los patrones ya establecidos. Orden obligatorio A → B → C → D.
+
+### Fase A — Bounded Context Carta
+- Nuevo `src/carta/` con aggregate `Plato { id, nombre, precio: Dinero, categoria, disponible, receta: LineaReceta[] }` y VO/entity `LineaReceta { insumoId, cantidad }`.
+- Eventos: `PlatoCreado`, `PrecioActualizado`, `DisponibilidadCambiada`.
+- Commands: `CrearPlato`, `ActualizarPrecio`, `CambiarDisponibilidad`, `DefinirReceta`.
+- Endpoints: `POST/GET /carta/platos`, `GET /carta/platos/:id`, `PATCH :id/precio`, `PATCH :id/disponibilidad`, `PUT :id/receta`. Aditivo.
+
+### Fase B — Proyección de catálogo en Pedidos
+- Read-model `PlatoCatalogo { platoId, nombre, precio, disponible }` mantenido por Pedidos escuchando los eventos de Carta (puerto `CatalogoPlatosRepository`, event-handlers `on-plato-*`). Aún nadie lo consume: `develop` sigue verde.
+
+### Fase C — "Flip" al modelo plato/receta (cambio acoplado)
+- `ItemPedido`: `productoId → platoId`, `+observacion?`, `precioUnitario` pasa a ser **snapshot**; `Pedido`: `+observacion?`.
+- `AgregarItem`: quita `precioUnitario` del request; el handler toma el precio de la proyección y valida el plato (existe/disponible).
+- `PedidoConfirmado`: ítems por `platoId` con observaciones + observación de pedido.
+- Carta reacciona a `PedidoConfirmado` → explota recetas → emite `InsumosRequeridos`.
+- Inventario reemplaza su reacción a `PedidoConfirmado` por `OnInsumosRequeridosHandler` (reserva por insumos, todo-o-nada).
+- Cocina: `ItemOrden.productoId → platoId` + observaciones; preparar por `platoId`.
+
+### Fase D — Movimientos de inventario + ciclo reserva → consumo/liberación
+- Entity kardex `MovimientoInventario { tipo: ENTRADA|SALIDA|RESERVA|LIBERACION, cantidad, motivo?, fecha }`, acumulada en el aggregate `Producto` y persistida en la misma transacción.
+- `Producto`: `consumirReserva`, `liberarReserva`, `registrarSalida`; `reponer` registra ENTRADA. Puerto/modelo `ReservaInsumo` (reserva por pedido).
+- `OnPedidoListoHandler` (consume al LISTO → SALIDA), `OnPedidoCanceladoHandler` (libera al CANCELADO → LIBERACION), `OnInsumosRequeridosHandler` persiste la reserva por pedido.
+- Command `RegistrarSalida`; endpoints `POST /inventario/productos/:id/salida` y `GET /inventario/productos/:id/movimientos` (kardex paginado).
+
+### Criterios de aceptación (A–D)
+- [ ] La Carta gestiona platos con precio y receta; el cliente **no** envía precio al agregar un ítem (se snapshotea del catálogo).
+- [ ] Al confirmar, Inventario reserva **insumos** (explotados de la receta), no platos; `stockReservado` sube y hay movimiento `RESERVA`.
+- [ ] Al quedar LISTO, el stock físico baja (movimiento `SALIDA`) y la reserva se limpia; al cancelar, se libera (`LIBERACION`, no-op si no hubo reserva).
+- [ ] `GET /inventario/productos/:id/movimientos` devuelve el kardex; `POST .../salida` valida disponible (400 si excede).
+
+> Nota de layout: Inventario queda con más de un aggregate/entity (`Producto` + `MovimientoInventario`) y dos puertos (`ProductoRepository`, `ReservaInsumoRepository`), permitido cuando el dominio lo exige.
+
+---
+
 ## Información de contexto adicional
 
 ### Variables de entorno (`.env.example`)

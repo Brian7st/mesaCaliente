@@ -23,24 +23,26 @@ enum EstadoPedidoDb {
 }
 
 model Pedido {
-  id         String         @id @default(uuid())
-  mesaId     String?
-  tipo       String
-  estado     EstadoPedidoDb
-  createdAt  DateTime       @default(now())
-  calle      String?
-  ciudad     String?
-  referencia String?
-  items      ItemPedido[]
+  id          String         @id @default(uuid())
+  mesaId      String?
+  tipo        String
+  estado      EstadoPedidoDb
+  createdAt   DateTime       @default(now())
+  calle       String?
+  ciudad      String?
+  referencia  String?
+  observacion String?
+  items       ItemPedido[]
 }
 
 model ItemPedido {
-  id             String @id @default(uuid())
+  id             String  @id @default(uuid())
   pedidoId       String
-  pedido         Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  productoId     String
+  pedido         Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  platoId        String
   cantidad       Int
   precioUnitario Int
+  observacion    String?
 }
 
 enum EstadoMesaDb {
@@ -62,19 +64,21 @@ enum EstadoOrdenCocinaDb {
 }
 
 model OrdenCocina {
-  id       String              @id @default(uuid())
-  pedidoId String
-  estado   EstadoOrdenCocinaDb
-  items    ItemOrden[]
+  id          String              @id @default(uuid())
+  pedidoId    String
+  estado      EstadoOrdenCocinaDb
+  observacion String?
+  items       ItemOrden[]
 }
 
 model ItemOrden {
-  id         String      @id @default(uuid())
-  ordenId    String
-  orden      OrdenCocina @relation(fields: [ordenId], references: [id], onDelete: Cascade)
-  productoId String
-  cantidad   Int
-  preparado  Boolean     @default(false)
+  id          String      @id @default(uuid())
+  ordenId     String
+  orden       OrdenCocina @relation(fields: [ordenId], references: [id], onDelete: Cascade)
+  platoId     String
+  cantidad    Int
+  preparado   Boolean     @default(false)
+  observacion String?
 }
 
 model Producto {
@@ -82,6 +86,61 @@ model Producto {
   nombre         String
   stock          Int
   stockReservado Int    @default(0)
+}
+
+enum TipoMovimientoDb {
+  ENTRADA
+  SALIDA
+  RESERVA
+  LIBERACION
+}
+
+// Kardex append-only: historico de movimientos de stock de cada Producto.
+model MovimientoInventario {
+  id         String           @id @default(uuid())
+  productoId String
+  tipo       TipoMovimientoDb
+  cantidad   Int
+  motivo     String?
+  fecha      DateTime         @default(now())
+
+  @@index([productoId, fecha])
+}
+
+// Registro de reserva por pedido: que insumos y cuanto quedaron apartados,
+// para consumirlos al quedar LISTO o liberarlos al cancelarse el pedido.
+model ReservaInsumo {
+  id       String @id @default(uuid())
+  pedidoId String
+  insumoId String
+  cantidad Int
+
+  @@index([pedidoId])
+}
+
+enum CategoriaPlatoDb {
+  ENTRADA
+  PRINCIPAL
+  POSTRE
+  BEBIDA
+  ACOMPANAMIENTO
+}
+
+model Plato {
+  id         String           @id @default(uuid())
+  nombre     String
+  precio     Int
+  categoria  CategoriaPlatoDb
+  disponible Boolean          @default(true)
+  receta     LineaReceta[]
+}
+
+model LineaReceta {
+  id       String @id @default(uuid())
+  platoId  String
+  plato    Plato  @relation(fields: [platoId], references: [id], onDelete: Cascade)
+  insumoId String
+  cantidad Int
 }
 
 enum EstadoCuentaDb {
@@ -117,6 +176,15 @@ model Domicilio {
   ciudad     String
   referencia String?
   estado     EstadoDomicilioDb
+}
+
+// Proyeccion (read-model) del catalogo de Carta, mantenida por Pedidos via
+// eventos, para resolver precio/disponibilidad al agregar un plato al pedido.
+model PlatoCatalogo {
+  platoId    String  @id
+  nombre     String
+  precio     Int
+  disponible Boolean
 }
 
 model OutboxEvent {

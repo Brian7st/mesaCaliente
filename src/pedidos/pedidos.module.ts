@@ -8,7 +8,11 @@ import { OnStockReservadoHandler } from './application/event-handlers/on-stock-r
 import { OnReservaStockFallidaHandler } from './application/event-handlers/on-reserva-stock-fallida.handler';
 import { OnPedidoListoHandler } from './application/event-handlers/on-pedido-listo.handler';
 import { OnPagoRegistradoHandler } from './application/event-handlers/on-pago-registrado.handler';
+import { OnPlatoCreadoHandler } from './application/event-handlers/on-plato-creado.handler';
+import { OnPrecioActualizadoHandler } from './application/event-handlers/on-precio-actualizado.handler';
+import { OnDisponibilidadCambiadaHandler } from './application/event-handlers/on-disponibilidad-cambiada.handler';
 import { PedidoRepositoryPrisma } from './infrastructure/out/persistence/pedido.repository.prisma';
+import { CatalogoPlatosRepositoryPrisma } from './infrastructure/out/persistence/catalogo-platos.repository.prisma';
 
 const CommandHandlers = [
   CrearPedidoHandler,
@@ -21,6 +25,9 @@ const EventHandlers = [
   OnReservaStockFallidaHandler,
   OnPedidoListoHandler,
   OnPagoRegistradoHandler,
+  OnPlatoCreadoHandler,
+  OnPrecioActualizadoHandler,
+  OnDisponibilidadCambiadaHandler,
 ];
 
 @Module({
@@ -30,6 +37,10 @@ const EventHandlers = [
     ...CommandHandlers,
     ...EventHandlers,
     { provide: 'PedidoRepository', useClass: PedidoRepositoryPrisma },
+    {
+      provide: 'CatalogoPlatosRepository',
+      useClass: CatalogoPlatosRepositoryPrisma,
+    },
   ],
 })
 export class PedidosModule {}
