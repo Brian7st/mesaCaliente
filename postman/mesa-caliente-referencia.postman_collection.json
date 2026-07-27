@@ -1,0 +1,88 @@
+{
+ "info": {
+  "name": "Mesa Caliente API - Referencia (por contexto)",
+  "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+  "description": "Catalogo de endpoints del backend Mesa Caliente, organizado por Bounded Context (DDD). Cada carpeta = un contexto. Reemplaza los {{...}} por IDs reales. Listados con paginacion offset (?page=&limit=) y respuesta { data, meta }."
+ },
+ "variable": [
+  { "key": "baseUrl", "value": "http://localhost:3000" },
+  { "key": "platoId", "value": "" },
+  { "key": "productoId", "value": "" },
+  { "key": "pedidoId", "value": "" },
+  { "key": "mesaId", "value": "" },
+  { "key": "ordenId", "value": "" },
+  { "key": "cuentaId", "value": "" },
+  { "key": "domicilioId", "value": "" }
+ ],
+ "item": [
+  {
+   "name": "Carta (Plato + receta)",
+   "item": [
+    { "name": "Crear plato", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "url": "{{baseUrl}}/carta/platos", "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Hamburguesa clasica\",\n  \"precio\": 25000,\n  \"categoria\": \"PRINCIPAL\"\n}" } } },
+    { "name": "Listar platos (paginado)", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/carta/platos?page=1&limit=20" } },
+    { "name": "Obtener plato por id", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/carta/platos/{{platoId}}" } },
+    { "name": "Actualizar precio", "request": { "method": "PATCH", "header": [ { "key": "Content-Type", "value": "application/json" } ], "url": "{{baseUrl}}/carta/platos/{{platoId}}/precio", "body": { "mode": "raw", "raw": "{\n  \"precio\": 27000\n}" } } },
+    { "name": "Cambiar disponibilidad", "request": { "method": "PATCH", "header": [ { "key": "Content-Type", "value": "application/json" } ], "url": "{{baseUrl}}/carta/platos/{{platoId}}/disponibilidad", "body": { "mode": "raw", "raw": "{\n  \"disponible\": false\n}" } } },
+    { "name": "Definir receta", "request": { "method": "PUT", "header": [ { "key": "Content-Type", "value": "application/json" } ], "url": "{{baseUrl}}/carta/platos/{{platoId}}/receta", "body": { "mode": "raw", "raw": "{\n  \"receta\": [\n    { \"insumoId\": \"{{productoId}}\", \"cantidad\": 2 }\n  ]\n}" } } }
+   ]
+  },
+  {
+   "name": "Inventario (Producto/insumo + kardex)",
+   "item": [
+    { "name": "Crear producto (insumo)", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "url": "{{baseUrl}}/inventario/productos", "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Carne\",\n  \"stockInicial\": 100\n}" } } },
+    { "name": "Listar productos (paginado)", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/inventario/productos?page=1&limit=20" } },
+    { "name": "Obtener producto por id", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/inventario/productos/{{productoId}}" } },
+    { "name": "Reponer stock (ENTRADA)", "request": { "method": "PATCH", "header": [ { "key": "Content-Type", "value": "application/json" } ], "url": "{{baseUrl}}/inventario/productos/{{productoId}}/reponer", "body": { "mode": "raw", "raw": "{\n  \"cantidad\": 50\n}" } } },
+    { "name": "Salida manual (merma/ajuste)", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "url": "{{baseUrl}}/inventario/productos/{{productoId}}/salida", "body": { "mode": "raw", "raw": "{\n  \"cantidad\": 3,\n  \"motivo\": \"Merma por vencimiento\"\n}" } } },
+    { "name": "Kardex de movimientos (paginado)", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/inventario/productos/{{productoId}}/movimientos?page=1&limit=20" } }
+   ]
+  },
+  {
+   "name": "Pedidos (Core)",
+   "item": [
+    { "name": "Crear pedido LOCAL", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "url": "{{baseUrl}}/pedidos", "body": { "mode": "raw", "raw": "{\n  \"tipo\": \"LOCAL\",\n  \"mesaId\": \"{{mesaId}}\",\n  \"observacion\": \"Mesa apurada\"\n}" } } },
+    { "name": "Crear pedido DOMICILIO", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "url": "{{baseUrl}}/pedidos", "body": { "mode": "raw", "raw": "{\n  \"tipo\": \"DOMICILIO\",\n  \"direccion\": { \"calle\": \"Cll 100 # 15-20\", \"ciudad\": \"Medellin\", \"referencia\": \"Torre B\" }\n}" } } },
+    { "name": "Agregar item (por platoId, sin precio)", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "url": "{{baseUrl}}/pedidos/{{pedidoId}}/items", "body": { "mode": "raw", "raw": "{\n  \"platoId\": \"{{platoId}}\",\n  \"cantidad\": 2,\n  \"observacion\": \"Sin cebolla\"\n}" } } },
+    { "name": "Confirmar pedido", "request": { "method": "POST", "header": [], "url": "{{baseUrl}}/pedidos/{{pedidoId}}/confirmar" } },
+    { "name": "Obtener pedido por id", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/pedidos/{{pedidoId}}" } },
+    { "name": "Listar pedidos (filtro por estado, paginado)", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/pedidos?estado=CONFIRMADO&page=1&limit=20" } }
+   ]
+  },
+  {
+   "name": "Cocina (OrdenCocina)",
+   "item": [
+    { "name": "Listar ordenes (filtro por estado, paginado)", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/cocina/ordenes?estado=PENDIENTE&page=1&limit=20" } },
+    { "name": "Obtener orden por id", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/cocina/ordenes/{{ordenId}}" } },
+    { "name": "Iniciar preparacion", "request": { "method": "PATCH", "header": [], "url": "{{baseUrl}}/cocina/ordenes/{{ordenId}}/iniciar" } },
+    { "name": "Preparar item (por platoId)", "request": { "method": "PATCH", "header": [], "url": "{{baseUrl}}/cocina/ordenes/{{ordenId}}/items/{{platoId}}/preparar" } },
+    { "name": "Finalizar (emite PedidoListo)", "request": { "method": "PATCH", "header": [], "url": "{{baseUrl}}/cocina/ordenes/{{ordenId}}/finalizar" } }
+   ]
+  },
+  {
+   "name": "Caja (Cuenta)",
+   "item": [
+    { "name": "Listar cuentas (paginado)", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/caja/cuentas?page=1&limit=20" } },
+    { "name": "Obtener cuenta por id", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/caja/cuentas/{{cuentaId}}" } },
+    { "name": "Pagar cuenta (emite PagoRegistrado)", "request": { "method": "POST", "header": [], "url": "{{baseUrl}}/caja/cuentas/{{cuentaId}}/pagar" } }
+   ]
+  },
+  {
+   "name": "Mesas",
+   "item": [
+    { "name": "Crear mesa", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "url": "{{baseUrl}}/mesas", "body": { "mode": "raw", "raw": "{\n  \"numero\": 5\n}" } } },
+    { "name": "Listar mesas (paginado)", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/mesas?page=1&limit=20" } },
+    { "name": "Obtener mesa por id", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/mesas/{{mesaId}}" } },
+    { "name": "Liberar mesa", "request": { "method": "PATCH", "header": [], "url": "{{baseUrl}}/mesas/{{mesaId}}/liberar" } }
+   ]
+  },
+  {
+   "name": "Domicilios",
+   "item": [
+    { "name": "Listar domicilios (paginado)", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/domicilios?page=1&limit=20" } },
+    { "name": "Obtener domicilio por id", "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/domicilios/{{domicilioId}}" } },
+    { "name": "Iniciar entrega (-> EN_CAMINO)", "request": { "method": "PATCH", "header": [], "url": "{{baseUrl}}/domicilios/{{domicilioId}}/iniciar-entrega" } },
+    { "name": "Confirmar entrega (-> ENTREGADO)", "request": { "method": "PATCH", "header": [], "url": "{{baseUrl}}/domicilios/{{domicilioId}}/confirmar-entrega" } }
+   ]
+  }
+ ]
+}
